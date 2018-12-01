@@ -25,24 +25,32 @@ def gaussian_kernel(kernel_size, nsig, channels):
 
     return out_filter
 
-def gaussian_blur(image, kernel_size, nsig, height, width, channels):
+def filter_forward(image, height, width, channels, filters):
+    #image = torch.from_numpy(image)
+    #image = np.reshape(image, newshape=(-1, channels, height, width))
+    image = image.view(-1, channels, height, width)
+    return filters(image)
+
+def kernel_to_Conv2d(kernel_size, nsig, channels):
     """
-    image : (batch_size, image_size), image_size = image_width * image_height * channels
     kernel_size : filter width and height length
     nsig        : range of gaussian distribution
-    height : refers to image_height
-    width  : refers to image_width
     channels    : choose how many channel you use, default is 3
     """
-    image = np.reshape(image, newshape=(-1, height, width, channels))
     out_filter = gaussian_kernel(kernel_size, nsig, channels)
-    gaussian_filter = nn.Conv2d(channels, channels, kernel_size, groups=channels, bias=False)
+    gaussian_filter = nn.Conv2d(channels, channels, kernel_size, groups=channels, bias=False, padding=10)
     gaussian_filter.weight.data = out_filter
     gaussian_filter.weight.requires_grad = False
-    
+
     return gaussian_filter
 
-def grayscale(image, height, width):
+def gaussian_blur(image, kernel_size, sigma, channels, height, width):
+    out_filter = kernel_to_Conv2d(kernel_size, sigma, channels)
+    tensor_image = filter_forward(image, height, width, channels, out_filter)
+
+    return tensor_image
+
+def grayscale(image, channels, height, width):
     """
     image  : (batch_size, image_size), image_size = image_width * image_height * channels
     height : refers to image_height
@@ -50,9 +58,13 @@ def grayscale(image, height, width):
 
     return : (batch_size, image_size with one channel)
     """
-    rgb_image = np.reshape(image, newshape=(-1, height, width, 3)) # 3 channel which is rgb
-    gray_image = np.dot(rgb_image[...,:3], [0.299, 0.587, 0.114])
-    gray_image = np.reshape(gray_image, newshape=(-1, height, width, 1))
-    gray_image = torch.from_numpy(gray_image)
+
+    #rgb_image = np.reshape(image, newshape=(-1, channels, height, width)) # 3 channel which is rgb
+    #gray_image = np.reshape(gray_image, newshape=(-1, 1, height, width))
+    #gray_image = torch.from_numpy(gray_image)
+
+    rgb_image = image.view(-1, channels, height, width)
+    gray_image = torch.dot(rgb_image[...,:3], [0.299, 0.587, 0.114])
+    gray_image = gray_image.view(-1, 1, height, width)
 
     return gray_image

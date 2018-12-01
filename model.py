@@ -1,5 +1,6 @@
 import torch.nn as nn
 
+from config import config
 
 class Flatten(nn.Module):
     def forward(self, x):
@@ -9,7 +10,7 @@ class Flatten(nn.Module):
 
 class ResidualBlock(nn.Module):
     def __init__(self):
-        super(ResidualBlock).__init__()
+        super(ResidualBlock, self).__init__()
         self.main = nn.Sequential(
             nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=True),
             nn.BatchNorm2d(64, momentum=0.1),
@@ -25,7 +26,7 @@ class ResidualBlock(nn.Module):
 
 class Generator(nn.Module):
     def __init__(self, repeat_num=4):
-        super(Generator).__init__()
+        super(Generator, self).__init__()
 
         layers = list()
         layers.append(nn.Conv2d(3, 64, kernel_size=9, padding=4, bias=True))
@@ -49,7 +50,7 @@ class Generator(nn.Module):
 
 class Discriminator(nn.Module):
     def __init__(self):
-        super(Discriminator).__init__()
+        super(Discriminator, self).__init__()
 
         layers = list()
         layers.append(nn.Conv2d(3, 48, kernel_size=11, padding=5, stride=4, bias=True))
@@ -81,3 +82,20 @@ class Discriminator(nn.Module):
 
     def forward(self, x):
         return self.main(x)
+
+
+class WESPE:
+
+    def __init__(self, config, USE_CUDA=True, training=True):
+        self.generator_g = Generator()
+        self.generator_f = Generator()
+        self.USE_CUDA    = USE_CUDA
+        self.training    = training
+
+        if self.USE_CUDA:
+            self.generator_g.cuda()
+            self.generator_f.cuda()
+
+        if training:
+            self.discriminator_c = Discriminator()
+            self.discriminator_t = Discriminator()
