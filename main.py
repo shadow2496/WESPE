@@ -1,13 +1,11 @@
-import torch.nn as nn
-import torchvision.models as models
-
-from config import *
-from model import *
+from config import config
 from load_dataset import *
 from utils import *
+from model import *
 
-USE_CUDA = False
-FEATURE_ID = 29
+import torch.nn as nn
+import torchvision.models as models
+import torchvision.transforms as transforms
 
 
 class FeatureExtractor(nn.Sequential):
@@ -24,7 +22,7 @@ class FeatureExtractor(nn.Sequential):
                 return x
 
 
-def get_feature_extractor():
+def get_feature_extractor(device):
     vgg_temp = models.vgg19(pretrained=True).features
     model = FeatureExtractor()
 
@@ -49,81 +47,102 @@ def get_feature_extractor():
             block_counter += 1
             model.add_layer(name, layer)  # Is nn.AvgPool2d((2,2)) better than nn.MaxPool2d?
 
-    if USE_CUDA:
-        model.cuda('cuda:2')
+    model.to(device)
     return model
 
 
 def get_feature(model, img_tensor, feature_id):
-    if USE_CUDA:
-        img_tensor = img_tensor.cuda('cuda:2')
-
-    feature_tensor = model(img_tensor, feature_id)
-    feature = feature_tensor.data.squeeze().cpu().numpy().transpose(1, 2, 0)
-
+    img_normalized = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])(img_tensor)
+    print("img_normalized mean : ", img_normalized.view(-1, config.channels, config.height * config.width).mean(2))
+    print("img_normalized std : ", img_normalized.view(-1, config.channels, config.height * config.width).std(2))
+    feature = model(img_normalized, feature_id)
+    # feature = feature.data.squeeze().cpu().numpy().transpose(1, 2, 0)
     return feature
 
 
 def main():
     # dataset load, default = 'blackberry'
     train_phone, train_dslr = load_train_dataset(config.model_type['0'], config.data_path, config.batch_size,
-                                                config.height * config.width * config.channels)
-    #test_phone, test_dslr   = load_test_dataset(config.model_type['0'], config.data_path,
-    #                                            config.height * config.width * config.channels)
+                                                 config.height * config.width * config.channels)
+    # test_phone, test_dslr = load_test_dataset(config.model_type['0'], config.data_path,
+    #                                           config.height * config.width * config.channels)
 
     # numpy array to torch tensor
     train_phone = torch.from_numpy(train_phone)
-    train_dslr  = torch.from_numpy(train_dslr)
-    #test_phone  = torch.from_numpy(test_phone)
-    #test_dslr   = torch.from_numpy(test_dslr)
+    train_dslr = torch.from_numpy(train_dslr)
+    # test_phone = torch.from_numpy(test_phone)
+    # test_dslr = torch.from_numpy(test_dslr)
 
     train_phone = train_phone.view(-1, config.channels, config.height, config.width)
-    train_dslr  = train_dslr.view(-1, config.channels, config.height, config.width)
-    print ('Check Train and Test data shape')
-    print ('Train phone shape : ', train_phone.shape)
-    print ('Train canon shape : ', train_dslr.shape)
-    #print ('Test phone shape : ', test_phone.shape)
-    #print ('Test canon shape : ', test_dslr.shape)
+    train_dslr = train_dslr.view(-1, config.channels, config.height, config.width)
+    print('Check Train and Test data shape')
+    print('Train phone shape : ', train_phone.size())
+    print('Train canon shape : ', train_dslr.size())
+    # print('Test phone shape : ', test_phone.size())
+    # print('Test canon shape : ', test_dslr.size())
 
-    training = True
+    device = torch.device('cuda:3' if config.use_cuda else 'cpu')
+    model = WESPE(config, device)
+    extractor = get_feature_extractor(device)
 
-    wespe = WESPE(config, USE_CUDA, training)
+    true_labels = torch.ones(config.batch_size, dtype=torch.long).to(device)
+    false_labels = torch.zeros(config.batch_size, dtype=torch.long).to(device)
+    for idx in range(config.train_iters):
+        train_phone, train_dslr = load_train_dataset(config.model_type['0'], config.data_path, config.batch_size,
+                                                     config.height * config.width * config.channels)
+        x = torch.from_numpy(train_phone).view(-1, config.channels, config.height, config.width)
+        y_real = torch.from_numpy(train_dslr).view(-1, config.channels, config.height, config.width)
+        x = x.to(device)
+        y_real = y_real.to(device)
 
-    train_iter = 1 # 20000
-    epochs = 1
+        # 추후에 고칠 예정
+        y_fake = model.gen_g(train_phone)
+        x_rec = model.gen_f(y_fake)
+        print("y_fake shape : ", y_fake.size())
+        print("x_rec shape : ", x_rec.size())
 
-    model = get_feature_extractor()
-    for e in range(epochs):
-        for idx in range(train_iter):
-            # 주의해야할 점 : 다시 train data load하면 view 함수로 2 dimension -> 4 dimension으로 만들어줘야한다.
+        # content loss
+        feat_x = get_feature(extractor, x, config.feature_id).detach()
+        feat_x_rec = get_feature(extractor, x_rec, config.feature_id)
+        print("feat_x shape : ", feat_x.size())
+        print("feat_x_rec : ", feat_x_rec.size())
+        loss_content = torch.pow(feat_x - feat_x_rec, 2).mean()
 
-            # 추후에 고칠 예정
-            y_hat = wespe.generator_g(train_phone)
-            x_hat = wespe.generator_f(y_hat)
+        # color loss
+        # gaussian blur image for discriminator_c
+        fake_blur = gaussian_blur(y_fake, config.kernel_size, config.sigma, config.channels,
+                                  config.height, config.width)
+        real_blur = gaussian_blur(y_real, config.kernel_size, config.sigma, config.channels,
+                                  config.height, config.width)
+        print("fake blur image shape : ", fake_blur.size())
+        print("real blur image shape : ", real_blur.size())
+        logits_fake_blur = model.dis_c(y_fake)
+        logits_real_blur = model.dis_c(y_real)
+        loss_color = model.criterion(logits_fake_blur, true_labels)
 
-            # content loss
-            print ("y_hat shape ", y_hat.shape)
-            print ("x_hat shape ", x_hat.shape)
-            feat_x = get_feature(model, train_phone, FEATURE_ID)
-            feat_x_rec = get_feature(model, x_hat, FEATURE_ID)
+        # texture loss
+        # gray-scale image for discriminator_t
+        fake_gray = gray_scale(y_fake, config.channels, config.height, config.width)
+        real_gray = gray_scale(train_dslr, config.channels, config.height, config.width)
+        print("fake grayscale image shape : ", fake_gray.size())
+        print("real grayscale image shape : ", real_gray.size())
+        logits_fake_gray = model.dis_t(y_fake)
+        logits_real_gray = model.dis_t(y_real)
+        loss_texture = model.criterion(logits_fake_gray, true_labels)
 
-            # color loss
-            # gaussian blur image for discriminator_c
-            fake_blur = gaussian_blur(y_hat, config.kernel_size, config.sigma, config.channels,
-                                    config.height, config.width)
-            real_blur = gaussian_blur(train_dslr, config.kernel_size, config.sigma, config.channels,
-                                    config.height, config.width)
-            print ("fake blur image shape ", fake_blur.shape)
-            print ("real blur image shape ", real_blur.shape)
-            # texture loss
-            # grayscale image for discriminator_t
-            fake_gray = grayscale(y_hat, config.channels, config.height, config.width)
-            real_gray = grayscale(train_dslr, config.channels, config.height, config.width)
-            print ("fake grayscale image shape ", fake_gray.shape)
-            print ("real grayscale image shape ", real_gray.shape)
-            # total variation loss
+        # total variation loss
 
-            # all loss sum
+        # all loss sum
+        loss = loss_content + config.lambda_color * loss_content + config.lambda_texture * loss_texture
+        print("Iteration : ", str(idx + 1) + "/" + str(config.total_iters), "Loss : {0:.4f}".format(loss.data))
+        print("Loss_content : {0:.4f}, Loss_color : {1:.4f}, Loss_texture : {2:.4f}".format(loss_content.data,
+                                                                                            loss_color.data,
+                                                                                            loss_texture.data))
+        model.g_optimizer.zero_grad()
+        model.f_optimizer.zero_grad()
+        loss.backward()
+        model.g_optimizer.step()
+        model.f_optimizer.step()
 
 
 if __name__ == '__main__':

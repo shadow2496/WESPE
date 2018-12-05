@@ -1,6 +1,6 @@
 import torch.nn as nn
+import torch.optim as optim
 
-from config import config
 
 class Flatten(nn.Module):
     def forward(self, x):
@@ -77,7 +77,6 @@ class Discriminator(nn.Module):
         layers.append(nn.LeakyReLU(0.2))
 
         layers.append(nn.Linear(1024, 2))
-        layers.append(nn.Softmax(dim=2))
         self.main = nn.Sequential(*layers)
 
     def forward(self, x):
@@ -85,17 +84,20 @@ class Discriminator(nn.Module):
 
 
 class WESPE:
+    def __init__(self, config, device):
+        self.gen_g = Generator()
+        self.gen_f = Generator()
+        self.gen_g.to(device)
+        self.gen_f.to(device)
 
-    def __init__(self, config, USE_CUDA=True, training=True):
-        self.generator_g = Generator()
-        self.generator_f = Generator()
-        self.USE_CUDA    = USE_CUDA
-        self.training    = training
+        if config.train:
+            self.dis_c = Discriminator()
+            self.dis_t = Discriminator()
+            self.dis_c.to(device)
+            self.dis_t.to(device)
 
-        if self.USE_CUDA:
-            self.generator_g.cuda()
-            self.generator_f.cuda()
-
-        if training:
-            self.discriminator_c = Discriminator()
-            self.discriminator_t = Discriminator()
+            self.g_optimizer = optim.Adam(self.gen_g.parameters(), lr=config.g_lr)
+            self.f_optimizer = optim.Adam(self.gen_f.parameters(), lr=config.g_lr)
+            self.c_optimizer = optim.Adam(self.dis_c.parameters(), lr=config.d_lr)
+            self.t_optimizer = optim.Adam(self.dis_t.parameters(), lr=config.d_lr)
+            self.criterion = nn.CrossEntropyLoss()
