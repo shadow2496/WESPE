@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.optim as optim
 
@@ -14,10 +15,10 @@ class ResidualBlock(nn.Module):
         self.main = nn.Sequential(
             nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=True),
             nn.BatchNorm2d(64, momentum=0.1),
-            nn.ReLU(),
+            nn.ReLU(inplace=True),
             nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=True),
             nn.BatchNorm2d(64, momentum=0.1),
-            nn.ReLU()
+            nn.ReLU(inplace=True)
         )
 
     def forward(self, x):
@@ -30,21 +31,22 @@ class Generator(nn.Module):
 
         layers = list()
         layers.append(nn.Conv2d(3, 64, kernel_size=9, padding=4, bias=True))
-        layers.append(nn.ReLU())
+        layers.append(nn.ReLU(inplace=True))
 
         for _ in range(repeat_num):
             layers.append(ResidualBlock())
 
         layers.append(nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=True))
-        layers.append(nn.ReLU())
+        layers.append(nn.ReLU(inplace=True))
         layers.append(nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=True))
-        layers.append(nn.ReLU())
+        layers.append(nn.ReLU(inplace=True))
 
         layers.append(nn.Conv2d(64, 3, kernel_size=9, padding=4, bias=True))
         layers.append(nn.Tanh())
         self.main = nn.Sequential(*layers)
 
     def forward(self, x):
+        x = x.float()
         return self.main(x)
 
 
@@ -80,6 +82,7 @@ class Discriminator(nn.Module):
         self.main = nn.Sequential(*layers)
 
     def forward(self, x):
+        x = x.float()
         return self.main(x)
 
 

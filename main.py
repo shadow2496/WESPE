@@ -3,6 +3,7 @@ from load_dataset import *
 from utils import *
 from model import *
 
+import torch
 import torch.nn as nn
 import torchvision.models as models
 import torchvision.transforms as transforms
@@ -17,6 +18,7 @@ class FeatureExtractor(nn.Sequential):
 
     def forward(self, x, feature_id):
         for idx, module in enumerate(self._modules):
+            x = x.float()
             x = self._modules[module](x)
             if idx == feature_id:
                 return x
@@ -33,18 +35,18 @@ def get_feature_extractor(device):
     for i, layer in enumerate(list(vgg_temp)):
         if isinstance(layer, nn.Conv2d):
             name = "conv_" + str(block_counter) + "_" + str(conv_counter)
-            conv_counter += 1
+            conv_counter = conv_counter + 1
             model.add_layer(name, layer)
 
         if isinstance(layer, nn.ReLU):
             name = "relu_" + str(block_counter) + "_" + str(relu_counter)
-            relu_counter += 1
+            relu_counter = relu_counter + 1
             model.add_layer(name, layer)
 
         if isinstance(layer, nn.MaxPool2d):
             name = "pool_" + str(block_counter)
             relu_counter = conv_counter = 1
-            block_counter += 1
+            block_counter = block_counter + 1
             model.add_layer(name, layer)  # Is nn.AvgPool2d((2,2)) better than nn.MaxPool2d?
 
     model.to(device)
@@ -81,7 +83,9 @@ def main():
     # print('Test phone shape : ', test_phone.size())
     # print('Test canon shape : ', test_dslr.size())
 
-    device = torch.device('cuda:3' if config.use_cuda else 'cpu')
+    device = torch.device('cuda:0' if config.use_cuda else 'cpu')
+    #device = torch.cuda.set_device(0)
+
     model = WESPE(config, device)
     extractor = get_feature_extractor(device)
 
@@ -96,13 +100,14 @@ def main():
         y_real = y_real.to(device)
 
         # 추후에 고칠 예정
-        y_fake = model.gen_g(train_phone)
-        x_rec = model.gen_f(y_fake)
+        # y_fake = model.gen_g(train_phone)
+        y_fake = model.gen_g(x)     # 1. train_phone -> x,  2. input type to float
+        x_rec = model.gen_f(y_fake) # cuda error : out of memory -> batch_size change to 20
         print("y_fake shape : ", y_fake.size())
         print("x_rec shape : ", x_rec.size())
 
         # content loss
-        feat_x = get_feature(extractor, x, config.feature_id).detach()
+        feat_x = get_feature(extractor, x, config.feature_id).detach() # input type to float
         feat_x_rec = get_feature(extractor, x_rec, config.feature_id)
         print("feat_x shape : ", feat_x.size())
         print("feat_x_rec : ", feat_x_rec.size())
@@ -123,7 +128,8 @@ def main():
         # texture loss
         # gray-scale image for discriminator_t
         fake_gray = gray_scale(y_fake, config.channels, config.height, config.width)
-        real_gray = gray_scale(train_dslr, config.channels, config.height, config.width)
+        # real_gray = gray_scale(train_dslr, config.channels, config.height, config.width)
+        real_gray = gray_scale(y_real, config.channels, config.height, config.width)
         print("fake grayscale image shape : ", fake_gray.size())
         print("real grayscale image shape : ", real_gray.size())
         logits_fake_gray = model.dis_t(y_fake)
@@ -134,7 +140,7 @@ def main():
 
         # all loss sum
         loss = loss_content + config.lambda_color * loss_content + config.lambda_texture * loss_texture
-        print("Iteration : ", str(idx + 1) + "/" + str(config.total_iters), "Loss : {0:.4f}".format(loss.data))
+        print("Iteration : ", str(idx + 1) + "/" + str(config.train_iters), "Loss : {0:.4f}".format(loss.data))
         print("Loss_content : {0:.4f}, Loss_color : {1:.4f}, Loss_texture : {2:.4f}".format(loss_content.data,
                                                                                             loss_color.data,
                                                                                             loss_texture.data))

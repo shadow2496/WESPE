@@ -6,7 +6,7 @@ config = easydict.EasyDict()
 config.data_path = './dataset/dped/'
 config.model_type = {'0': 'blackberry', '1': 'iphone', '2': 'sony'}
 
-config.batch_size = 30
+config.batch_size = 20
 config.height = 100
 config.width = 100
 config.channels = 3
@@ -22,7 +22,7 @@ config.lambda_texture = 5 * 1e-3
 config.lambda_tv = 10
 
 config.train_iters = 1  # 200000
-# config.train = True
+config.train = True
 config.use_cuda = True
 
 # DEPRECATED
