@@ -3,7 +3,6 @@ import scipy.stats as st
 import torch
 import torch.nn as nn
 
-import torchvision.transforms as transforms
 
 def gaussian_kernel(kernel_size, nsig, channels):
     """
@@ -25,14 +24,12 @@ def gaussian_kernel(kernel_size, nsig, channels):
     out_filter = np.repeat(out_filter, channels, axis=0)
     out_filter = torch.from_numpy(out_filter)
 
-    return out_filter.cuda()
+    return out_filter
 
 
-def filter_forward(image, height, width, channels, filters):
+def filter_forward(image, filters):
     # image = torch.from_numpy(image)
     # image = np.reshape(image, newshape=(-1, channels, height, width))
-    image = image.view(-1, channels, height, width)
-    image = image.float()
     return filters(image)
 
 
@@ -50,14 +47,14 @@ def kernel_to_conv2d(kernel_size, nsig, channels):
     return gaussian_filter
 
 
-def gaussian_blur(image, kernel_size, sigma, channels, height, width):
-    out_filter = kernel_to_conv2d(kernel_size, sigma, channels)
-    tensor_image = filter_forward(image, height, width, channels, out_filter)
+def gaussian_blur(image, kernel_size, sigma, channels, device):
+    out_filter = kernel_to_conv2d(kernel_size, sigma, channels).to(device)
+    tensor_image = filter_forward(image, out_filter)
 
     return tensor_image
 
 
-def gray_scale(image, channels, height, width):
+def gray_scale(image, channels, height, width, device):
     """
     image  : (batch_size, image_size), image_size = image_width * image_height * channels
     height : refers to image_height
@@ -71,8 +68,7 @@ def gray_scale(image, channels, height, width):
     # gray_image = torch.from_numpy(gray_image)
 
     rgb_image = image.view(-1, channels)
-    rgb_image = rgb_image.float()
-    gray_image = torch.matmul(rgb_image, torch.cuda.FloatTensor([0.299, 0.587, 0.114]))
+    gray_image = torch.matmul(rgb_image, torch.Tensor([0.299, 0.587, 0.114]).to(device))
     gray_image = gray_image.view(-1, 1, height, width)
 
     return gray_image
