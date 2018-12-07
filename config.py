@@ -4,6 +4,7 @@ import torch
 config = easydict.EasyDict()
 
 config.data_path = './dataset/dped/'
+config.sample_path = './samples/'
 config.model_type = {'0': 'blackberry', '1': 'iphone', '2': 'sony'}
 
 config.batch_size = 20

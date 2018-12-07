@@ -3,9 +3,11 @@ from load_dataset import *
 from utils import *
 from model import *
 
+import os
 import torch
 import torch.nn as nn
 import torchvision.models as models
+import torchvision.utils as utils
 
 
 class FeatureExtractor(nn.Sequential):
@@ -63,6 +65,9 @@ def get_feature(model, img_tensor, feature_id, device):
 
 
 def main():
+    if not os.path.exists(config.sample_path):
+        os.makedirs(config.sample_path)
+
     # dataset load, default = 'blackberry'
     train_phone, train_dslr = load_train_dataset(config.model_type['0'], config.data_path, config.batch_size,
                                                  config.height * config.width * config.channels)
@@ -75,8 +80,8 @@ def main():
     # test_phone = torch.from_numpy(test_phone)
     # test_dslr = torch.from_numpy(test_dslr)
 
-    train_phone = train_phone.view(-1, config.channels, config.height, config.width)
-    train_dslr = train_dslr.view(-1, config.channels, config.height, config.width)
+    train_phone = train_phone.view(-1, config.height, config.width, config.channels).permute(0, 3, 1, 2)
+    train_dslr = train_dslr.view(-1, config.height, config.width, config.channels).permute(0, 3, 1, 2)
     print('Check Train and Test data shape')
     print('Train phone shape : ', train_phone.size())
     print('Train canon shape : ', train_dslr.size())
@@ -92,10 +97,12 @@ def main():
     for idx in range(config.train_iters):
         train_phone, train_dslr = load_train_dataset(config.model_type['0'], config.data_path, config.batch_size,
                                                      config.height * config.width * config.channels)
-        x = torch.from_numpy(train_phone).float().view(-1, config.channels, config.height, config.width)
-        y_real = torch.from_numpy(train_dslr).float().view(-1, config.channels, config.height, config.width)
-        x = x.to(device)
-        y_real = y_real.to(device)
+        x = torch.from_numpy(train_phone).float()
+        y_real = torch.from_numpy(train_dslr).float()
+        x = x.view(-1, config.height, config.width, config.channels).permute(0, 3, 1, 2).to(device)
+        y_real = y_real.view(-1, config.height, config.width, config.channels).permute(0, 3, 1, 2).to(device)
+        utils.save_image(x, config.sample_path + "x.jpg")
+        utils.save_image(y_real, config.sample_path + "y_real.jpg")
 
         # 추후에 고칠 예정
         y_fake = model.gen_g(x)
@@ -114,6 +121,7 @@ def main():
         # gaussian blur image for discriminator_c
         fake_blur = gaussian_blur(y_fake, config.kernel_size, config.sigma, config.channels, device)
         real_blur = gaussian_blur(y_real, config.kernel_size, config.sigma, config.channels, device).detach()
+        utils.save_image(real_blur, config.sample_path + "real_blur.jpg")
         print("fake blur image shape : ", fake_blur.size())
         print("real blur image shape : ", real_blur.size())
         logits_fake_blur = model.dis_c(y_fake)
@@ -124,6 +132,7 @@ def main():
         # gray-scale image for discriminator_t
         fake_gray = gray_scale(y_fake, config.channels, config.height, config.width, device)
         real_gray = gray_scale(y_real, config.channels, config.height, config.width, device).detach()
+        utils.save_image(real_gray, config.sample_path + 'real_gray.jpg')
         print("fake grayscale image shape : ", fake_gray.size())
         print("real grayscale image shape : ", real_gray.size())
         logits_fake_gray = model.dis_t(y_fake)
