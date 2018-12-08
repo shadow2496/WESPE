@@ -54,11 +54,9 @@ def gaussian_blur(image, kernel_size, sigma, channels, device):
     return tensor_image
 
 
-def gray_scale(image, channels, height, width, device):
+def gray_scale(image):
     """
     image  : (batch_size, image_size), image_size = image_width * image_height * channels
-    height : refers to image_height
-    width  : refers to image_width
 
     return : (batch_size, image_size with one channel)
     """
@@ -67,8 +65,6 @@ def gray_scale(image, channels, height, width, device):
     # gray_image = np.reshape(gray_image, newshape=(-1, 1, height, width))
     # gray_image = torch.from_numpy(gray_image)
 
-    rgb_image = image.view(-1, channels)
-    gray_image = torch.matmul(rgb_image, torch.Tensor([0.299, 0.587, 0.114]).to(device))
-    gray_image = gray_image.view(-1, 1, height, width)
+    gray_image = torch.unsqueeze(image[:, 0] * 0.299 + image[:, 1] * 0.587 + image[:, 2] * 0.114, 1)
 
     return gray_image

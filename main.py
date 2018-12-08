@@ -34,17 +34,17 @@ def get_feature_extractor(device):
 
     for i, layer in enumerate(list(vgg_temp)):
         if isinstance(layer, nn.Conv2d):
-            name = "conv_" + str(block_counter) + "_" + str(conv_counter)
+            name = 'conv_' + str(block_counter) + '_' + str(conv_counter)
             conv_counter += 1
             model.add_layer(name, layer)
 
         if isinstance(layer, nn.ReLU):
-            name = "relu_" + str(block_counter) + "_" + str(relu_counter)
+            name = 'relu_' + str(block_counter) + '_' + str(relu_counter)
             relu_counter += 1
             model.add_layer(name, layer)
 
         if isinstance(layer, nn.MaxPool2d):
-            name = "pool_" + str(block_counter)
+            name = 'pool_' + str(block_counter)
             relu_counter = conv_counter = 1
             block_counter += + 1
             model.add_layer(name, layer)  # Is nn.AvgPool2d((2,2)) better than nn.MaxPool2d?
@@ -57,8 +57,8 @@ def get_feature(model, img_tensor, feature_id, device):
     mean = torch.Tensor([0.485, 0.456, 0.406]).to(device).view(1, config.channels, 1, 1)
     std = torch.Tensor([0.229, 0.224, 0.225]).to(device).view(1, config.channels, 1, 1)
     img_normalized = (img_tensor - mean) / std
-    print("img_normalized mean : ", img_normalized.permute(1, 0, 2, 3).reshape(config.channels, -1).mean(1))
-    print("img_normalized std : ", img_normalized.permute(1, 0, 2, 3).reshape(config.channels, -1).std(1))
+    print('img_normalized mean : ', img_normalized.permute(1, 0, 2, 3).reshape(config.channels, -1).mean(1))
+    print('img_normalized std : ', img_normalized.permute(1, 0, 2, 3).reshape(config.channels, -1).std(1))
     feature = model(img_normalized, feature_id)
     # feature = feature.data.squeeze().cpu().numpy().transpose(1, 2, 0)
     return feature
@@ -101,50 +101,46 @@ def main():
         y_real = torch.from_numpy(train_dslr).float()
         x = x.view(-1, config.height, config.width, config.channels).permute(0, 3, 1, 2).to(device)
         y_real = y_real.view(-1, config.height, config.width, config.channels).permute(0, 3, 1, 2).to(device)
-        utils.save_image(x, config.sample_path + "x.jpg")
-        utils.save_image(y_real, config.sample_path + "y_real.jpg")
 
         # 추후에 고칠 예정
         y_fake = model.gen_g(x)
         x_rec = model.gen_f(y_fake)  # cuda error : out of memory -> batch_size change to 20
-        print("y_fake shape : ", y_fake.size())
-        print("x_rec shape : ", x_rec.size())
+        # print('y_fake shape : ', y_fake.size())
+        # print('x_rec shape : ', x_rec.size())
 
         # content loss
         feat_x = get_feature(extractor, x, config.feature_id, device).detach()
         feat_x_rec = get_feature(extractor, x_rec, config.feature_id, device)
-        print("feat_x shape : ", feat_x.size())
-        print("feat_x_rec : ", feat_x_rec.size())
+        # print('feat_x shape : ', feat_x.size())
+        # print('feat_x_rec : ', feat_x_rec.size())
         loss_content = torch.pow(feat_x - feat_x_rec, 2).mean()
 
         # color loss
         # gaussian blur image for discriminator_c
         fake_blur = gaussian_blur(y_fake, config.kernel_size, config.sigma, config.channels, device)
         real_blur = gaussian_blur(y_real, config.kernel_size, config.sigma, config.channels, device).detach()
-        utils.save_image(real_blur, config.sample_path + "real_blur.jpg")
-        print("fake blur image shape : ", fake_blur.size())
-        print("real blur image shape : ", real_blur.size())
-        logits_fake_blur = model.dis_c(y_fake)
-        logits_real_blur = model.dis_c(y_real)
+        # print('fake blur image shape : ', fake_blur.size())
+        # print('real blur image shape : ', real_blur.size())
+        logits_fake_blur = model.dis_c(fake_blur)
+        logits_real_blur = model.dis_c(real_blur)
         loss_color = model.criterion(logits_fake_blur, true_labels)
 
         # texture loss
         # gray-scale image for discriminator_t
-        fake_gray = gray_scale(y_fake, config.channels, config.height, config.width, device)
-        real_gray = gray_scale(y_real, config.channels, config.height, config.width, device).detach()
-        utils.save_image(real_gray, config.sample_path + 'real_gray.jpg')
-        print("fake grayscale image shape : ", fake_gray.size())
-        print("real grayscale image shape : ", real_gray.size())
-        logits_fake_gray = model.dis_t(y_fake)
-        logits_real_gray = model.dis_t(y_real)
+        fake_gray = gray_scale(y_fake)
+        real_gray = gray_scale(y_real).detach()
+        # print('fake grayscale image shape : ', fake_gray.size())
+        # print('real grayscale image shape : ', real_gray.size())
+        logits_fake_gray = model.dis_t(fake_gray)
+        logits_real_gray = model.dis_t(real_gray)
         loss_texture = model.criterion(logits_fake_gray, true_labels)
 
         # total variation loss
 
         # all loss sum
         loss = loss_content + config.lambda_color * loss_content + config.lambda_texture * loss_texture
-        print("Iteration : ", str(idx + 1) + "/" + str(config.train_iters), "Loss : {0:.4f}".format(loss.data))
-        print("Loss_content : {0:.4f}, Loss_color : {1:.4f}, Loss_texture : {2:.4f}".format(loss_content.data,
+        print('Iteration : ', str(idx + 1) + '/' + str(config.train_iters), 'Loss : {0:.4f}'.format(loss.data))
+        print('Loss_content : {0:.4f}, Loss_color : {1:.4f}, Loss_texture : {2:.4f}'.format(loss_content.data,
                                                                                             loss_color.data,
                                                                                             loss_texture.data))
         model.g_optimizer.zero_grad()
@@ -152,6 +148,16 @@ def main():
         loss.backward()
         model.g_optimizer.step()
         model.f_optimizer.step()
+
+        if (idx + 1) % 1000 == 0:
+            utils.save_image(x, config.sample_path + str(idx + 1) + 'x.jpg')
+            utils.save_image(x_rec, config.sample_path + str(idx + 1) + 'x_rec.jpg')
+            utils.save_image(y_fake, config.sample_path + str(idx + 1) + 'y_fake.jpg')
+            utils.save_image(y_real, config.sample_path + str(idx + 1) + 'y_real.jpg')
+            utils.save_image(fake_blur, config.sample_path + str(idx + 1) + 'fake_blur.jpg')
+            utils.save_image(real_blur, config.sample_path + str(idx + 1) + 'real_blur.jpg')
+            utils.save_image(fake_gray, config.sample_path + str(idx + 1) + 'fake_gray.jpg')
+            utils.save_image(real_gray, config.sample_path + str(idx + 1) + 'real_gray.jpg')
 
 
 if __name__ == '__main__':
