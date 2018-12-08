@@ -46,26 +46,28 @@ def load_train_dataset(model, path, train_size, image_size):
     return train_phone, train_canon
 
 
-def load_test_dataset(model, path, test_size, image_size):
+def load_test_dataset(model, path, test_start, test_end, image_size):
     """
     model : {iphone, blackberry, sony}, 3 types of model exist
     path  : refer to dataset path
     image_size : deciding size of image
     """
-    test_path_phone = path + str(model) + './test_data/patches/' + str(model) + '/'
-    test_path_canon = path + str(model) + './test_data/patches/canon/'
+    test_path_phone = path + str(model) + '/test_data/patches/' + str(model) + '/'
+    test_path_canon = path + str(model) + '/test_data/patches/canon/'
 
     test_image_num = len([name for name in os.listdir(test_path_phone)
                          if os.path.isfile(os.path.join(test_path_phone, name))])
 
+    test_size = test_end - test_start
     if test_size == -1:  # use all test image
         test_size = test_image_num
         test_image = np.arange(0, test_size)
     else:                # use small test image
-        test_image = np.random.choice(np.arange(0, test_image_num), size=test_size, replace=False)
+        test_image = np.arange(test_start, test_end)
 
     test_phone = np.zeros((test_size, image_size))
     test_canon = np.zeros((test_size, image_size))
+
 
     idx = 0
     for img in test_image:
