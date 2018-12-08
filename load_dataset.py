@@ -68,7 +68,6 @@ def load_test_dataset(model, path, test_start, test_end, image_size):
     test_phone = np.zeros((test_size, image_size))
     test_canon = np.zeros((test_size, image_size))
 
-
     idx = 0
     for img in test_image:
         img_array = np.asarray(Image.open(test_path_phone + str(img) + '.jpg'))

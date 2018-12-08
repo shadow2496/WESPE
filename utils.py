@@ -1,11 +1,13 @@
+from config import config
+
+import math
 import numpy as np
 import scipy.stats as st
 import torch
 import torch.nn as nn
-import math
-from config import config
 from scipy import signal
 from scipy.ndimage.filters import convolve
+
 
 def gaussian_kernel(kernel_size, nsig, channels):
     """
@@ -72,6 +74,7 @@ def gray_scale(image):
 
     return gray_image
 
+
 def psnr(image1, image2):
     """
     psnr : approximate estimate of absolute error
@@ -87,6 +90,7 @@ def psnr(image1, image2):
     # compute psnr score
     psnr_score = 20 * math.log10(255) - 10 * math.log10(MSE)
     return psnr_score
+
 
 def fspecial_gauss(window_size, window_sigma):
     """
@@ -105,6 +109,7 @@ def fspecial_gauss(window_size, window_sigma):
     norm_kernel = torch.from_numpy(norm_kernel).float()
     return norm_kernel
 
+
 def ssim(image1, image2, kernel_size=11, kernel_sigma=1.5):
     """
     ssim : consider image degradation as perceived change in structural information,
@@ -115,9 +120,9 @@ def ssim(image1, image2, kernel_size=11, kernel_sigma=1.5):
     kernel_sigma : standard deviation of gaussian kernel
     """
     if type(image1) is not np.ndarray:
-        image1 = image1.numpy()
+        image1 = image1.detach().cpu().numpy()
     if type(image2) is not np.ndarray:
-        image2 = image2.numpy()
+        image2 = image2.cpu().numpy()
 
     # filter size can't be larger than height or width of images.
     filter_size = min(kernel_size, config.height, config.width)
@@ -134,7 +139,7 @@ def ssim(image1, image2, kernel_size=11, kernel_sigma=1.5):
         sigma11 = signal.fftconvolve(image1*image1, window, mode='same')
         sigma22 = signal.fftconvolve(image2*image2, window, mode='same')
         sigma12 = signal.fftconvolve(image1*image2, window, mode='same')
-    else: # empty gaussian blur kernel, no need to convolve
+    else:  # empty gaussian blur kernel, no need to convolve
         mu1 = image1
         mu2 = image2
         sigma11 = image1 * image1
@@ -148,12 +153,10 @@ def ssim(image1, image2, kernel_size=11, kernel_sigma=1.5):
     sigma22 -= mu_22
     sigma12 -= mu_12
 
-
-    k_1, k_2 = 0.01, 0.03;
-    L = 255 # bitdepth of image, 2 ^ (bits per pixel) - 1
+    k_1, k_2 = 0.01, 0.03
+    L = 255  # bitdepth of image, 2 ^ (bits per pixel) - 1
     c_1 = (k_1 * L) ** 2
     c_2 = (k_2 * L) ** 2
-    c_3 = c_2 / 2
 
     v_1 = 2.0 * sigma12 + c_2
     v_2 = sigma11 + sigma22 + c_2
@@ -162,16 +165,17 @@ def ssim(image1, image2, kernel_size=11, kernel_sigma=1.5):
     cs_map = np.mean(v_1 / v_2)
     return ssim_score, cs_map
 
+
 def multi_scale_ssim(image1, image2, kernel_size=11, kernel_sigma=1.5, weights=None):
     # default weights are None, but in below paper it has default weights
     # https://ece.uwaterloo.ca/~z70wang/publications/msssim.pdf
     if type(image1) is not np.ndarray:
-        image1 = image1.numpy()
+        image1 = image1.detach().cpu().numpy()
     if type(image2) is not np.ndarray:
-        image2 = image2.numpy()
+        image2 = image2.cpu().numpy()
 
     ms_ssim = np.array([])
-    cs_map  = np.array([])
+    cs_map = np.array([])
 
     if weights:
         weights = np.array(weights)
@@ -179,13 +183,13 @@ def multi_scale_ssim(image1, image2, kernel_size=11, kernel_sigma=1.5, weights=N
         weights = np.array([0.0448, 0.2856, 0.3001, 0.2363, 0.1333])
 
     levels = len(weights)
-    downsample = np.ones((1,1,2,2)) / 4.0
+    downsample = np.ones((1, 1, 2, 2)) / 4.0
 
     for i in range(levels):
-        ssim_score, cs = ssim(image1, image2, 11, 1.5)
+        ssim_score, cs = ssim(image1, image2, kernel_size, kernel_sigma)
         ms_ssim = np.append(ms_ssim, ssim_score)
-        cs_map  = np.append(cs_map, cs)
+        cs_map = np.append(cs_map, cs)
         downsample_filtered = [convolve(image, downsample, mode='reflect') for image in [image1, image2]]
         image1, image2 = [image[:, :, ::2, ::2] for image in downsample_filtered]
 
-    return (np.prod(cs_map[0:levels-1] ** weights[0:levels-1]) * (ms_ssim[levels-1] ** weights[levels-1]))
+    return np.prod(cs_map[0:levels-1] ** weights[0:levels-1]) * (ms_ssim[levels-1] ** weights[levels-1])
