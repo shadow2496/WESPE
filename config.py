@@ -1,5 +1,4 @@
 import easydict
-import torch
 
 config = easydict.EasyDict()
 
@@ -17,17 +16,13 @@ config.feature_id = 35  # VGG19 ReLU5_4
 config.kernel_size = 21
 config.sigma = 3
 
-config.g_lr = 1e-3
-config.d_lr = 1e-3
+config.g_lr = 5e-4
+config.d_lr = 5e-4
 config.lambda_c = 5 * 1e-3
 config.lambda_t = 5 * 1e-3
 config.lambda_tv = 10
 
 config.resume_iter = 0
 config.train_iters = 1  # DEFAULT: 20000
-config.train = False
+config.train = True
 config.use_cuda = True
-
-# DEPRECATED
-config.dtype = torch.FloatTensor
-config.gpu_dtype = torch.cuda.FloatTensor
