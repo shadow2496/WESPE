@@ -19,8 +19,8 @@ config.sigma = 3
 
 config.g_lr = 1e-3
 config.d_lr = 1e-3
-config.lambda_color = 5 * 1e-3
-config.lambda_texture = 5 * 1e-3
+config.lambda_c = 5 * 1e-3
+config.lambda_t = 5 * 1e-3
 config.lambda_tv = 10
 
 config.train_iters = 1  # DEFAULT: 20000

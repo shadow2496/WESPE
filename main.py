@@ -102,47 +102,46 @@ def main():
         x = x.view(-1, config.height, config.width, config.channels).permute(0, 3, 1, 2).to(device)
         y_real = y_real.view(-1, config.height, config.width, config.channels).permute(0, 3, 1, 2).to(device)
 
-        # 추후에 고칠 예정
         y_fake = model.gen_g(x)
         x_rec = model.gen_f(y_fake)  # cuda error : out of memory -> batch_size change to 20
         # print('y_fake shape : ', y_fake.size())
         # print('x_rec shape : ', x_rec.size())
 
         # content loss
-        feat_x = get_feature(extractor, x, config.feature_id, device).detach()
+        feat_x = get_feature(extractor, x, config.feature_id, device)
         feat_x_rec = get_feature(extractor, x_rec, config.feature_id, device)
         # print('feat_x shape : ', feat_x.size())
         # print('feat_x_rec : ', feat_x_rec.size())
-        loss_content = torch.pow(feat_x - feat_x_rec, 2).mean()
+        loss_content = torch.pow(feat_x.detach() - feat_x_rec, 2).mean()
 
         # color loss
         # gaussian blur image for discriminator_c
         fake_blur = gaussian_blur(y_fake, config.kernel_size, config.sigma, config.channels, device)
-        real_blur = gaussian_blur(y_real, config.kernel_size, config.sigma, config.channels, device).detach()
         # print('fake blur image shape : ', fake_blur.size())
         # print('real blur image shape : ', real_blur.size())
         logits_fake_blur = model.dis_c(fake_blur)
-        logits_real_blur = model.dis_c(real_blur)
-        loss_color = model.criterion(logits_fake_blur, true_labels)
+        loss_c = model.criterion(logits_fake_blur, true_labels)
 
         # texture loss
         # gray-scale image for discriminator_t
         fake_gray = gray_scale(y_fake)
-        real_gray = gray_scale(y_real).detach()
         # print('fake grayscale image shape : ', fake_gray.size())
         # print('real grayscale image shape : ', real_gray.size())
         logits_fake_gray = model.dis_t(fake_gray)
-        logits_real_gray = model.dis_t(real_gray)
-        loss_texture = model.criterion(logits_fake_gray, true_labels)
+        loss_t = model.criterion(logits_fake_gray, true_labels)
 
         # total variation loss
+        # need to know why it is calculated this way
+        height_tv = torch.pow(y_fake[:, :, 1:, :] - y_fake[:, :, :config.height - 1, :], 2).mean()
+        width_tv = torch.pow(y_fake[:, :, :, 1:] - y_fake[:, :, :, :config.width - 1], 2).mean()
+        loss_tv = height_tv + width_tv
 
         # all loss sum
-        loss = loss_content + config.lambda_color * loss_content + config.lambda_texture * loss_texture
+        loss = loss_content + config.lambda_c * loss_c + config.lambda_t * loss_t + config.lambda_tv * loss_tv
         print('Iteration : ', str(idx + 1) + '/' + str(config.train_iters), 'Loss : {0:.4f}'.format(loss.data))
-        print('Loss_content : {0:.4f}, Loss_color : {1:.4f}, Loss_texture : {2:.4f}'.format(loss_content.data,
-                                                                                            loss_color.data,
-                                                                                            loss_texture.data))
+        print('Loss_content : {0:.4f}, Loss_c : {1:.4f}, Loss_t : {2:.4f}, Loss_tv: {3:.4f}'.format(
+            loss_content.data, loss_c.data, loss_t.data, loss_tv.data
+        ))
         model.g_optimizer.zero_grad()
         model.f_optimizer.zero_grad()
         loss.backward()
@@ -155,9 +154,9 @@ def main():
             utils.save_image(y_fake, os.path.join(config.sample_path, '{}-y_fake.jpg'.format(idx + 1)))
             utils.save_image(y_real, os.path.join(config.sample_path, '{}-y_real.jpg'.format(idx + 1)))
             utils.save_image(fake_blur, os.path.join(config.sample_path, '{}-fake_blur.jpg'.format(idx + 1)))
-            utils.save_image(real_blur, os.path.join(config.sample_path, '{}-real_blur.jpg'.format(idx + 1)))
+            # utils.save_image(real_blur, os.path.join(config.sample_path, '{}-real_blur.jpg'.format(idx + 1)))
             utils.save_image(fake_gray, os.path.join(config.sample_path, '{}-fake_gray.jpg'.format(idx + 1)))
-            utils.save_image(real_gray, os.path.join(config.sample_path, '{}-real_gray.jpg'.format(idx + 1)))
+            # utils.save_image(real_gray, os.path.join(config.sample_path, '{}-real_gray.jpg'.format(idx + 1)))
 
             torch.save(model.gen_g.state_dict(), os.path.join(config.checkpoint_path, '{}-Gen_g.ckpt'.format(idx + 1)))
             torch.save(model.gen_f.state_dict(), os.path.join(config.checkpoint_path, '{}-Gen_f.ckpt'.format(idx + 1)))
