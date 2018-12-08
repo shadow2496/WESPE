@@ -5,6 +5,7 @@ config = easydict.EasyDict()
 
 config.data_path = './dataset/dped/'
 config.sample_path = './samples/'
+config.checkpoint_path = './checkpoints/'
 config.model_type = {'0': 'blackberry', '1': 'iphone', '2': 'sony'}
 
 config.batch_size = 30  # DEFAULT: 30

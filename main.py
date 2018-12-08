@@ -57,8 +57,8 @@ def get_feature(model, img_tensor, feature_id, device):
     mean = torch.Tensor([0.485, 0.456, 0.406]).to(device).view(1, config.channels, 1, 1)
     std = torch.Tensor([0.229, 0.224, 0.225]).to(device).view(1, config.channels, 1, 1)
     img_normalized = (img_tensor - mean) / std
-    print('img_normalized mean : ', img_normalized.permute(1, 0, 2, 3).reshape(config.channels, -1).mean(1))
-    print('img_normalized std : ', img_normalized.permute(1, 0, 2, 3).reshape(config.channels, -1).std(1))
+    # print('img_normalized mean : ', img_normalized.permute(1, 0, 2, 3).reshape(config.channels, -1).mean(1))
+    # print('img_normalized std : ', img_normalized.permute(1, 0, 2, 3).reshape(config.channels, -1).std(1))
     feature = model(img_normalized, feature_id)
     # feature = feature.data.squeeze().cpu().numpy().transpose(1, 2, 0)
     return feature
@@ -150,14 +150,20 @@ def main():
         model.f_optimizer.step()
 
         if (idx + 1) % 1000 == 0:
-            utils.save_image(x, config.sample_path + str(idx + 1) + 'x.jpg')
-            utils.save_image(x_rec, config.sample_path + str(idx + 1) + 'x_rec.jpg')
-            utils.save_image(y_fake, config.sample_path + str(idx + 1) + 'y_fake.jpg')
-            utils.save_image(y_real, config.sample_path + str(idx + 1) + 'y_real.jpg')
-            utils.save_image(fake_blur, config.sample_path + str(idx + 1) + 'fake_blur.jpg')
-            utils.save_image(real_blur, config.sample_path + str(idx + 1) + 'real_blur.jpg')
-            utils.save_image(fake_gray, config.sample_path + str(idx + 1) + 'fake_gray.jpg')
-            utils.save_image(real_gray, config.sample_path + str(idx + 1) + 'real_gray.jpg')
+            utils.save_image(x, os.path.join(config.sample_path, '{}-x.jpg'.format(idx + 1)))
+            utils.save_image(x_rec, os.path.join(config.sample_path, '{}-x_rec.jpg'.format(idx + 1)))
+            utils.save_image(y_fake, os.path.join(config.sample_path, '{}-y_fake.jpg'.format(idx + 1)))
+            utils.save_image(y_real, os.path.join(config.sample_path, '{}-y_real.jpg'.format(idx + 1)))
+            utils.save_image(fake_blur, os.path.join(config.sample_path, '{}-fake_blur.jpg'.format(idx + 1)))
+            utils.save_image(real_blur, os.path.join(config.sample_path, '{}-real_blur.jpg'.format(idx + 1)))
+            utils.save_image(fake_gray, os.path.join(config.sample_path, '{}-fake_gray.jpg'.format(idx + 1)))
+            utils.save_image(real_gray, os.path.join(config.sample_path, '{}-real_gray.jpg'.format(idx + 1)))
+
+            torch.save(model.gen_g.state_dict(), os.path.join(config.checkpoint_path, '{}-Gen_g.ckpt'.format(idx + 1)))
+            torch.save(model.gen_f.state_dict(), os.path.join(config.checkpoint_path, '{}-Gen_f.ckpt'.format(idx + 1)))
+            torch.save(model.dis_c.state_dict(), os.path.join(config.checkpoint_path, '{}-Dis_c.ckpt'.format(idx + 1)))
+            torch.save(model.dis_t.state_dict(), os.path.join(config.checkpoint_path, '{}-Dis_t.ckpt'.format(idx + 1)))
+            print('Saved intermediate images and model checkpoints.')
 
 
 if __name__ == '__main__':
