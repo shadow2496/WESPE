@@ -46,7 +46,7 @@ def load_train_dataset(model, path, train_size, image_size):
     return train_phone, train_canon
 
 
-def load_test_dataset(model, path, image_size):
+def load_test_dataset(model, path, test_size, image_size):
     """
     model : {iphone, blackberry, sony}, 3 types of model exist
     path  : refer to dataset path
@@ -58,19 +58,27 @@ def load_test_dataset(model, path, image_size):
     test_image_num = len([name for name in os.listdir(test_path_phone)
                          if os.path.isfile(os.path.join(test_path_phone, name))])
 
-    test_phone = np.zeros((test_image_num, image_size))
-    test_canon = np.zeros((test_image_num, image_size))
+    if test_size == -1:  # use all test image
+        test_size = test_image_num
+        test_image = np.arange(0, test_size)
+    else:                # use small test image
+        test_image = np.random.choice(np.arange(0, test_image_num), size=test_size, replace=False)
 
-    for img in range(test_image_num):
+    test_phone = np.zeros((test_size, image_size))
+    test_canon = np.zeros((test_size, image_size))
+
+    idx = 0
+    for img in test_image:
         img_array = np.asarray(Image.open(test_path_phone + str(img) + '.jpg'))
         img_array = np.float32(np.reshape(img_array, newshape=[1, image_size])) / 255
-        test_phone[img, :] = img_array
+        test_phone[idx, :] = img_array
 
         img_array = np.asarray(Image.open(test_path_canon + str(img) + '.jpg'))
         img_array = np.float32(np.reshape(img_array, newshape=[1, image_size])) / 255
-        test_canon[img, :] = img_array
+        test_canon[idx, :] = img_array
 
-        if img % 100 == 0:
-            print('image / test_size : %d / %d = %.2f percent done' % (img, test_image_num, img/test_image_num))
+        idx += 1
+        if idx % 100 == 0:
+            print('image / test_size : %d / %d = %.2f percent done' % (idx, test_size, idx/test_size))
 
     return test_phone, test_canon
