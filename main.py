@@ -102,6 +102,9 @@ def main():
         x = x.view(-1, config.height, config.width, config.channels).permute(0, 3, 1, 2).to(device)
         y_real = y_real.view(-1, config.height, config.width, config.channels).permute(0, 3, 1, 2).to(device)
 
+        # --------------------------------------------------------------------------------------------------------------
+        #                                                Train generators
+        # --------------------------------------------------------------------------------------------------------------
         y_fake = model.gen_g(x)
         x_rec = model.gen_f(y_fake)  # cuda error : out of memory -> batch_size change to 20
         # print('y_fake shape : ', y_fake.size())
@@ -137,16 +140,44 @@ def main():
         loss_tv = height_tv + width_tv
 
         # all loss sum
-        loss = loss_content + config.lambda_c * loss_c + config.lambda_t * loss_t + config.lambda_tv * loss_tv
-        print('Iteration : ', str(idx + 1) + '/' + str(config.train_iters), 'Loss : {0:.4f}'.format(loss.data))
-        print('Loss_content : {0:.4f}, Loss_c : {1:.4f}, Loss_t : {2:.4f}, Loss_tv: {3:.4f}'.format(
-            loss_content.data, loss_c.data, loss_t.data, loss_tv.data
-        ))
+        gen_loss = loss_content + config.lambda_c * loss_c + config.lambda_t * loss_t + config.lambda_tv * loss_tv
+
         model.g_optimizer.zero_grad()
         model.f_optimizer.zero_grad()
-        loss.backward()
+        gen_loss.backward()
         model.g_optimizer.step()
         model.f_optimizer.step()
+
+        # --------------------------------------------------------------------------------------------------------------
+        #                                              Train discriminators
+        # --------------------------------------------------------------------------------------------------------------
+        y_fake = model.gen_g(x)
+
+        real_blur = gaussian_blur(y_real, config.kernel_size, config.sigma, config.channels, device)
+        fake_blur = gaussian_blur(y_fake, config.kernel_size, config.sigma, config.channels, device)
+        logits_real_blur = model.dis_c(real_blur.detach())
+        logits_fake_blur = model.dis_c(fake_blur.detach())
+        loss_dc = model.criterion(logits_real_blur, true_labels) + model.criterion(logits_fake_blur, false_labels)
+
+        fake_gray = gray_scale(y_fake)
+        real_gray = gray_scale(y_real)
+        logits_fake_gray = model.dis_t(fake_gray.detach())
+        logits_real_gray = model.dis_t(real_gray.detach())
+        loss_dt = model.criterion(logits_real_gray, true_labels) + model.criterion(logits_fake_gray, false_labels)
+
+        dis_loss = config.lambda_c * loss_dc + config.lambda_t * loss_dt
+
+        model.c_optimizer.zero_grad()
+        model.t_optimizer.zero_grad()
+        dis_loss.backward()
+        model.c_optimizer.step()
+        model.t_optimizer.step()
+
+        print('Iteration : {}/{}, Gen_loss : {:.4f}, Dis_loss : {:.4f}'.format(
+            idx + 1, config.train_iters, gen_loss.data, dis_loss.data))
+        print('Loss_content : {:.4f}, Loss_c : {:.4f}, Loss_t : {:.4f}, Loss_tv: {:.4f}'.format(
+            loss_content.data, loss_c.data, loss_t.data, loss_tv.data))
+        print('Loss_dc : {:.4f}, Loss_dt : {:.4f}'.format(loss_dc.data, loss_dt.data))
 
         if (idx + 1) % 1000 == 0:
             utils.save_image(x, os.path.join(config.sample_path, '{}-x.jpg'.format(idx + 1)))
@@ -154,9 +185,9 @@ def main():
             utils.save_image(y_fake, os.path.join(config.sample_path, '{}-y_fake.jpg'.format(idx + 1)))
             utils.save_image(y_real, os.path.join(config.sample_path, '{}-y_real.jpg'.format(idx + 1)))
             utils.save_image(fake_blur, os.path.join(config.sample_path, '{}-fake_blur.jpg'.format(idx + 1)))
-            # utils.save_image(real_blur, os.path.join(config.sample_path, '{}-real_blur.jpg'.format(idx + 1)))
+            utils.save_image(real_blur, os.path.join(config.sample_path, '{}-real_blur.jpg'.format(idx + 1)))
             utils.save_image(fake_gray, os.path.join(config.sample_path, '{}-fake_gray.jpg'.format(idx + 1)))
-            # utils.save_image(real_gray, os.path.join(config.sample_path, '{}-real_gray.jpg'.format(idx + 1)))
+            utils.save_image(real_gray, os.path.join(config.sample_path, '{}-real_gray.jpg'.format(idx + 1)))
 
             torch.save(model.gen_g.state_dict(), os.path.join(config.checkpoint_path, '{}-Gen_g.ckpt'.format(idx + 1)))
             torch.save(model.gen_f.state_dict(), os.path.join(config.checkpoint_path, '{}-Gen_f.ckpt'.format(idx + 1)))

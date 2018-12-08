@@ -49,11 +49,11 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self):
+    def __init__(self, channels=3):
         super(Discriminator, self).__init__()
 
         layers = list()
-        layers.append(nn.Conv2d(3, 48, kernel_size=11, padding=5, stride=4, bias=True))
+        layers.append(nn.Conv2d(channels, 48, kernel_size=11, padding=5, stride=4, bias=True))
         layers.append(nn.LeakyReLU(0.2))
 
         layers.append(nn.Conv2d(48, 128, kernel_size=5, padding=2, stride=2, bias=True))
@@ -92,7 +92,7 @@ class WESPE:
 
         if config.train:
             self.dis_c = Discriminator()
-            self.dis_t = Discriminator()
+            self.dis_t = Discriminator(channels=1)
             self.dis_c.to(device)
             self.dis_t.to(device)
 
