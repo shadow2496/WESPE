@@ -64,9 +64,25 @@ def get_feature(model, img_tensor, feature_id, device):
     return feature
 
 
+def load_checkpoints(model):
+    print('Loading the model checkpoints from iter {}...'.format(config.resume_iter))
+    gen_g_path = os.path.join(config.checkpoint_path, '{}-Gen_g.ckpt'.format(config.resume_iter))
+    gen_f_path = os.path.join(config.checkpoint_path, '{}-Gen_f.ckpt'.format(config.resume_iter))
+    model.gen_g.load_state_dict(torch.load(gen_g_path, map_location=lambda storage, loc: storage))
+    model.gen_f.load_state_dict(torch.load(gen_f_path, map_location=lambda storage, loc: storage))
+
+    if config.train:
+        dis_c_path = os.path.join(config.checkpoint_path, '{}-Dis_c.ckpt'.format(config.resume_iter))
+        dis_t_path = os.path.join(config.checkpoint_path, '{}-Dis_t.ckpt'.format(config.resume_iter))
+        model.dis_c.load_state_dict(torch.load(dis_c_path, map_location=lambda storage, loc: storage))
+        model.dis_t.load_state_dict(torch.load(dis_t_path, map_location=lambda storage, loc: storage))
+
+
 def main():
     if not os.path.exists(config.sample_path):
         os.makedirs(config.sample_path)
+    if not os.path.exists(config.checkpoint_path):
+        os.makedirs(config.checkpoint_path)
 
     # dataset load, default = 'blackberry'
     train_phone, train_dslr = load_train_dataset(config.model_type['0'], config.data_path, config.batch_size,
@@ -91,10 +107,12 @@ def main():
     device = torch.device('cuda:0' if config.use_cuda else 'cpu')
     model = WESPE(config, device)
     extractor = get_feature_extractor(device)
+    if config.resume_iter != 0:
+        load_checkpoints(model)
 
     true_labels = torch.ones(config.batch_size, dtype=torch.long).to(device)
     false_labels = torch.zeros(config.batch_size, dtype=torch.long).to(device)
-    for idx in range(config.train_iters):
+    for idx in range(config.resume_iter, config.train_iters):
         train_phone, train_dslr = load_train_dataset(config.model_type['0'], config.data_path, config.batch_size,
                                                      config.height * config.width * config.channels)
         x = torch.from_numpy(train_phone).float()

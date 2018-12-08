@@ -23,6 +23,7 @@ config.lambda_c = 5 * 1e-3
 config.lambda_t = 5 * 1e-3
 config.lambda_tv = 10
 
+config.resume_iter = 0
 config.train_iters = 1  # DEFAULT: 20000
 config.train = True
 config.use_cuda = True
