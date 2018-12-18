@@ -15,9 +15,6 @@ class FeatureExtractor(nn.Sequential):
     def __init__(self):
         super(FeatureExtractor, self).__init__()
 
-    def add_layer(self, name, layer):
-        self.add_module(name, layer)
-
     def forward(self, x, feature_id):
         for idx, module in enumerate(self._modules):
             x = self._modules[module](x)
@@ -37,18 +34,18 @@ def get_feature_extractor(device):
         if isinstance(layer, nn.Conv2d):
             name = 'conv_' + str(block_counter) + '_' + str(conv_counter)
             conv_counter += 1
-            model.add_layer(name, layer)
+            model.add_module(name, layer)
 
         if isinstance(layer, nn.ReLU):
             name = 'relu_' + str(block_counter) + '_' + str(relu_counter)
             relu_counter += 1
-            model.add_layer(name, layer)
+            model.add_module(name, layer)
 
         if isinstance(layer, nn.MaxPool2d):
             name = 'pool_' + str(block_counter)
             relu_counter = conv_counter = 1
             block_counter += + 1
-            model.add_layer(name, layer)  # Is nn.AvgPool2d((2,2)) better than nn.MaxPool2d?
+            model.add_module(name, layer)  # Is nn.AvgPool2d((2,2)) better than nn.MaxPool2d?
 
     model.to(device)
     return model
@@ -97,7 +94,7 @@ def train(model, device):
         #                                                Train generators
         # --------------------------------------------------------------------------------------------------------------
         y_fake = model.gen_g(x)
-        x_rec = model.gen_f(y_fake)  # cuda error : out of memory -> batch_size change to 20
+        x_rec = model.gen_f(y_fake)
         # print('y_fake shape : ', y_fake.size())
         # print('x_rec shape : ', x_rec.size())
 
@@ -156,7 +153,8 @@ def train(model, device):
         logits_real_gray = model.dis_t(real_gray.detach())
         loss_dt = model.criterion(logits_real_gray, true_labels) + model.criterion(logits_fake_gray, false_labels)
 
-        dis_loss = config.lambda_c * loss_dc + config.lambda_t * loss_dt
+        # dis_loss = config.lambda_c * loss_dc + config.lambda_t * loss_dt
+        dis_loss = loss_dc + loss_dt
 
         model.c_optimizer.zero_grad()
         model.t_optimizer.zero_grad()
@@ -234,19 +232,6 @@ def main():
         os.makedirs(os.path.join(config.sample_path, config.model_type))
     if not os.path.exists(os.path.join(config.checkpoint_path, config.model_type)):
         os.makedirs(os.path.join(config.checkpoint_path, config.model_type))
-
-    # dataset load, default = 'blackberry'
-    train_phone, train_dslr = load_train_dataset(config.model_type, config.data_path, config.batch_size,
-                                                 config.height * config.width * config.channels)
-
-    # numpy array to torch tensor
-    train_phone = torch.from_numpy(train_phone).float()
-    train_dslr = torch.from_numpy(train_dslr).float()
-    train_phone = train_phone.view(-1, config.height, config.width, config.channels).permute(0, 3, 1, 2)
-    train_dslr = train_dslr.view(-1, config.height, config.width, config.channels).permute(0, 3, 1, 2)
-    print('Check Train and Test data shape')
-    print('Train phone shape : ', train_phone.size())
-    print('Train canon shape : ', train_dslr.size())
 
     device = torch.device('cuda:0' if config.use_cuda else 'cpu')
     model = WESPE(config, device)
