@@ -88,7 +88,7 @@ def psnr(image1, image2):
     # compute MSE with image1 and image2
     MSE = torch.sum(torch.pow((image1 - image2), 2)) / (config.batch_size * image_size)
     # compute psnr score
-    psnr_score = 20 * math.log10(255) - 10 * math.log10(MSE)
+    psnr_score = 20 * math.log10(1) - 10 * math.log10(MSE)
     return psnr_score
 
 

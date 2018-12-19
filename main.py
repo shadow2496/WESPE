@@ -191,7 +191,7 @@ def train(model, device):
 def test(model, device):
     test_path = config.data_path + config.model_type + '/test_data/patches/canon/'
     test_image_num = len([name for name in os.listdir(test_path)
-                         if os.path.isfile(os.path.join(test_path, name))])
+                         if os.path.isfile(os.path.join(test_path, name))]) // config.batch_size * config.batch_size
 
     score_psnr, score_ssim_skimage, score_ssim_minstar, score_msssim_minstar = 0.0, 0.0, 0.0, 0.0
     for start in range(0, test_image_num, config.batch_size):
