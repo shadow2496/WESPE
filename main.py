@@ -64,7 +64,7 @@ def get_feature(model, img_tensor, feature_id, device):
 
 def load_checkpoints(model):
     print('Loading the model checkpoints from iter {}...'.format(config.resume_iter))
-    checkpoint_path = os.path.join(config.checkpoint_path, config.model_type)
+    checkpoint_path = os.path.join(config.checkpoint_dir, config.phone)
 
     gen_g_path = os.path.join(checkpoint_path, '{}-Gen_g.ckpt'.format(config.resume_iter))
     gen_f_path = os.path.join(checkpoint_path, '{}-Gen_f.ckpt'.format(config.resume_iter))
@@ -83,12 +83,12 @@ def train(model, device):
     true_labels = torch.ones(config.batch_size, dtype=torch.long).to(device)
     false_labels = torch.zeros(config.batch_size, dtype=torch.long).to(device)
     for idx in range(config.resume_iter, config.train_iters):
-        train_phone, train_dslr = load_train_dataset(config.model_type, config.data_path, config.batch_size,
-                                                     config.height * config.width * config.channels)
+        train_phone, train_dslr = load_train_data(config.dataset_dir, config.phone, config.batch_size,
+                                                  config.width * config.height * config.channels)
         x = torch.from_numpy(train_phone).float()
         y_real = torch.from_numpy(train_dslr).float()
-        x = x.view(-1, config.height, config.width, config.channels).permute(0, 3, 1, 2).to(device)
-        y_real = y_real.view(-1, config.height, config.width, config.channels).permute(0, 3, 1, 2).to(device)
+        x = x.view(-1, config.height, config.width, config.channels).to(device)
+        y_real = y_real.view(-1, config.height, config.width, config.channels).to(device)
 
         # --------------------------------------------------------------------------------------------------------------
         #                                                Train generators
@@ -169,8 +169,8 @@ def train(model, device):
         print('Loss_dc : {:.4f}, Loss_dt : {:.4f}'.format(loss_dc.data, loss_dt.data))
 
         if (idx + 1) % 1000 == 0:
-            sample_path = os.path.join(config.sample_path, config.model_type)
-            checkpoint_path = os.path.join(config.checkpoint_path, config.model_type)
+            sample_path = os.path.join(config.sample_dir, config.phone)
+            checkpoint_path = os.path.join(config.checkpoint_dir, config.phone)
 
             utils.save_image(x, os.path.join(sample_path, '{}-x.jpg'.format(idx + 1)))
             utils.save_image(x_rec, os.path.join(sample_path, '{}-x_rec.jpg'.format(idx + 1)))
@@ -189,15 +189,15 @@ def train(model, device):
 
 
 def test(model, device):
-    test_path = config.data_path + config.model_type + '/test_data/patches/canon/'
+    test_path = config.dataset_dir + config.phone + '/test_data/patches/canon/'
     test_image_num = len([name for name in os.listdir(test_path)
                          if os.path.isfile(os.path.join(test_path, name))]) // config.batch_size * config.batch_size
 
     score_psnr, score_ssim_skimage, score_ssim_minstar, score_msssim_minstar = 0.0, 0.0, 0.0, 0.0
     for start in range(0, test_image_num, config.batch_size):
         end = min(start + config.batch_size, test_image_num)
-        test_phone, test_dslr = load_test_dataset(config.model_type, config.data_path, start, end,
-                                                  config.height * config.width * config.channels)
+        test_phone, test_dslr = load_test_data(config.phone, config.dataset_dir, start, end,
+                                               config.height * config.width * config.channels)
         x = torch.from_numpy(test_phone).float()
         y_real = torch.from_numpy(test_dslr).float()
         x = x.view(-1, config.height, config.width, config.channels).permute(0, 3, 1, 2).to(device)
@@ -228,10 +228,10 @@ def test(model, device):
 
 
 def main():
-    if not os.path.exists(os.path.join(config.sample_path, config.model_type)):
-        os.makedirs(os.path.join(config.sample_path, config.model_type))
-    if not os.path.exists(os.path.join(config.checkpoint_path, config.model_type)):
-        os.makedirs(os.path.join(config.checkpoint_path, config.model_type))
+    if not os.path.exists(os.path.join(config.sample_dir, config.phone)):
+        os.makedirs(os.path.join(config.sample_dir, config.phone))
+    if not os.path.exists(os.path.join(config.checkpoint_dir, config.phone)):
+        os.makedirs(os.path.join(config.checkpoint_dir, config.phone))
 
     device = torch.device('cuda:0' if config.use_cuda else 'cpu')
     model = WESPE(config, device)

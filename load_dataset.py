@@ -1,52 +1,45 @@
-from __future__ import division
 from PIL import Image
 import numpy as np
 import os
 
-# load test and train dataset
-# path default = './dataset/dped/'
 
-
-def load_train_dataset(model, path, train_size, image_size):
+def load_train_data(dataset_dir, phone, train_size, image_size):
     """
-    model : {iphone, blackberry, sony}, 3 types of model exist
-    path  : refer to dataset path
+    dataset_dir : refer to dataset path
+    phone : {iphone, blackberry, sony}, 3 types of model exist
     train_size : deciding how many number of images you choose
     image_size : deciding size of image
     """
-    train_path_phone = path + str(model) + '/training_data/' + str(model) + '/'
-    train_path_canon = path + str(model) + '/training_data/canon/'
+    train_dir_phone = dataset_dir + phone + '/training_data/' + phone + '/'
+    train_dir_dslr = dataset_dir + phone + '/training_data/canon/'
+    num_train_images = len(os.listdir(train_dir_phone))
 
-    train_image_num = len([name for name in os.listdir(train_path_phone)
-                           if os.path.isfile(os.path.join(train_path_phone, name))])
-
-    if train_size == -1:  # use all training image
-        train_size = train_image_num
-        train_image = np.arange(0, train_size)
-    else:                # use small training image
-        train_image = np.random.choice(np.arange(0, train_image_num), size=train_size, replace=False)
+    # Load all training images if train_size == -1
+    if train_size == -1:
+        train_size = num_train_images
+        image_names = np.arange(0, train_size)
+    else:
+        image_names = np.random.choice(np.arange(0, num_train_images), train_size, replace=False)
 
     train_phone = np.zeros((train_size, image_size))
-    train_canon = np.zeros((train_size, image_size))
+    train_dslr = np.zeros((train_size, image_size))
 
-    idx = 0
-    for img in train_image:
-        img_array = np.asarray(Image.open(train_path_phone + str(img) + '.jpg'))    # (100, 100, 3), 0~255 value
-        img_array = np.float32(np.reshape(img_array, newshape=[1, image_size])) / 255
-        train_phone[idx, :] = img_array
+    for i, name in enumerate(image_names):
+        img = np.asarray(Image.open(train_dir_phone + str(name) + '.jpg'))  # (100, 100, 3), 0~255 value
+        img = np.float32(img.transpose((2, 0, 1)).reshape(image_size)) / 255
+        train_phone[i, :] = img
 
-        img_array = np.asarray(Image.open(train_path_canon + str(img) + '.jpg'))    # (100, 100, 3), 0~255 value
-        img_array = np.float32(np.reshape(img_array, newshape=[1, image_size])) / 255
-        train_canon[idx, :] = img_array
+        img = np.asarray(Image.open(train_dir_dslr + str(name) + '.jpg'))  # (100, 100, 3), 0~255 value
+        img = np.float32(img.transpose((2, 0, 1)).reshape(image_size)) / 255
+        train_dslr[i, :] = img
 
-        idx += 1
-        if idx % 100 == 0:
-            print('image / train_size : %d / %d = %.2f percent done' % (idx, train_size, idx/train_size))
+        if not (i + 1) % 100:
+            print("Loading training data {}/{}...".format(i + 1, train_size), end="\r")
 
-    return train_phone, train_canon
+    return train_phone, train_dslr
 
 
-def load_test_dataset(model, path, test_start, test_end, image_size):
+def load_test_data(model, path, test_start, test_end, image_size):
     """
     model : {iphone, blackberry, sony}, 3 types of model exist
     path  : refer to dataset path
