@@ -12,7 +12,7 @@ config.width = 100
 config.height = 100
 config.channels = 3
 
-config.feature_id = 35  # VGG19 ReLU5_4
+config.content_id = 36  # VGG19 ReLU5_4
 config.kernel_size = 21 #?
 config.sigma = 3
 

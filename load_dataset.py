@@ -1,6 +1,7 @@
-from PIL import Image
-import numpy as np
 import os
+
+import numpy as np
+from PIL import Image
 
 
 def load_train_data(dataset_dir, phone, train_size, image_size):
@@ -25,13 +26,13 @@ def load_train_data(dataset_dir, phone, train_size, image_size):
     train_dslr = np.zeros((train_size, image_size))
 
     for i, name in enumerate(image_names):
-        img = np.asarray(Image.open(train_dir_phone + str(name) + '.jpg'))  # (100, 100, 3), 0~255 value
+        img = np.asarray(Image.open(train_dir_phone + str(name) + '.jpg'))
         img = np.float32(img.transpose((2, 0, 1)).reshape(image_size)) / 255
-        train_phone[i, :] = img
+        train_phone[i] = img
 
-        img = np.asarray(Image.open(train_dir_dslr + str(name) + '.jpg'))  # (100, 100, 3), 0~255 value
+        img = np.asarray(Image.open(train_dir_dslr + str(name) + '.jpg'))
         img = np.float32(img.transpose((2, 0, 1)).reshape(image_size)) / 255
-        train_dslr[i, :] = img
+        train_dslr[i] = img
 
         if not (i + 1) % 100:
             print("Loading training data {}/{}...".format(i + 1, train_size), end="\r")
