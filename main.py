@@ -36,8 +36,8 @@ def train(models, device):
     for idx in range(config.resume_iter, config.train_iters):
         train_phone, train_dslr = load_train_data(config.dataset_dir, config.phone, config.batch_size,
                                                   (config.channels, config.height, config.width))
-        train_phone = torch.from_numpy(train_phone).to(device)
-        train_dslr = torch.from_numpy(train_dslr).to(device)
+        train_phone = torch.as_tensor(train_phone, device=device)
+        train_dslr = torch.as_tensor(train_dslr, device=device)
 
         # --------------------------------------------------------------------------------------------------------------
         #                                                Train generators
@@ -46,8 +46,8 @@ def train(models, device):
         phone_rec = models.gen_f(enhanced)
 
         # 1) Content consistency loss
-        phone_vgg = get_content(vgg19, train_phone, config.content_id)
-        phone_rec_vgg = get_content(vgg19, phone_rec, config.content_id)
+        phone_vgg = get_content(vgg19, train_phone, config.content_id, device)
+        phone_rec_vgg = get_content(vgg19, phone_rec, config.content_id, device)
         loss_content = torch.pow(phone_vgg.detach() - phone_rec_vgg, 2).mean() #?
 
         # color loss

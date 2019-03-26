@@ -6,15 +6,14 @@ from scipy import signal
 from scipy.ndimage.filters import convolve
 import torch
 import torch.nn as nn
-from torchvision import transforms
 
 from config import config
 
 
-def get_content(vgg19, img_tensor, content_id):
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-    content = vgg19.features[:content_id](normalize(img_tensor))
+def get_content(vgg19, img_tensor, content_id, device):
+    mean = torch.tensor([0.485, 0.456, 0.406], device=device).view(3, 1, 1)
+    std = torch.tensor([0.229, 0.224, 0.225], device=device).view(3, 1, 1)
+    content = vgg19.features[:content_id]((img_tensor - mean) / std)
     return content
 
 
