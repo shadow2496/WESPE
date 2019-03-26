@@ -22,16 +22,16 @@ def load_train_data(dataset_dir, phone, train_size, image_size):
     else:
         image_names = np.random.choice(np.arange(0, num_train_images), train_size, replace=False)
 
-    train_phone = np.zeros((train_size, image_size))
-    train_dslr = np.zeros((train_size, image_size))
+    train_phone = np.zeros((train_size, *image_size), dtype=np.float32)
+    train_dslr = np.zeros((train_size, *image_size), dtype=np.float32)
 
     for i, name in enumerate(image_names):
         img = np.asarray(Image.open(train_dir_phone + str(name) + '.jpg'))
-        img = np.float32(img.transpose((2, 0, 1)).reshape(image_size)) / 255
+        img = np.float32(img.transpose((2, 0, 1))) / 255
         train_phone[i] = img
 
         img = np.asarray(Image.open(train_dir_dslr + str(name) + '.jpg'))
-        img = np.float32(img.transpose((2, 0, 1)).reshape(image_size)) / 255
+        img = np.float32(img.transpose((2, 0, 1))) / 255
         train_dslr[i] = img
 
         if not (i + 1) % 100:

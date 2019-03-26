@@ -1,12 +1,20 @@
-from config import config
-
 import math
+
 import numpy as np
 import scipy.stats as st
-import torch
-import torch.nn as nn
 from scipy import signal
 from scipy.ndimage.filters import convolve
+import torch
+import torch.nn as nn
+from torchvision import transforms
+
+from config import config
+
+
+def preprocess_data(img_tensor):
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+    return normalize(img_tensor)
 
 
 def gaussian_kernel(kernel_size, nsig, channels):

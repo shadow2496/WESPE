@@ -7,8 +7,8 @@ from skimage.measure import compare_ssim
 
 from config import config
 from load_dataset import *
-from utils import *
 from models import *
+from utils import *
 
 
 def get_feature(model, img_tensor, content_id, device):
@@ -39,36 +39,33 @@ def load_checkpoints(model):
 
 
 def train(models, device):
-    vgg19 = torchvision.models.vgg19(pretrained=True).to(device)
+    vgg19 = torchvision.models.vgg19(pretrained=True)
+    vgg19.to(device)
 
-    true_labels = torch.ones(config.batch_size, dtype=torch.long).to(device)
-    false_labels = torch.zeros(config.batch_size, dtype=torch.long).to(device)
+    true_labels = torch.ones(config.batch_size, dtype=torch.long).to(device) #?
+    false_labels = torch.zeros(config.batch_size, dtype=torch.long).to(device) #?
     for idx in range(config.resume_iter, config.train_iters):
         train_phone, train_dslr = load_train_data(config.dataset_dir, config.phone, config.batch_size,
-                                                  config.width * config.height * config.channels)
-        x = torch.from_numpy(train_phone).float()
-        y_real = torch.from_numpy(train_dslr).float()
-        x = x.view(-1, config.channels, config.height, config.width).to(device)
-        y_real = y_real.view(-1, config.channels, config.height, config.width).to(device)
+                                                  (config.channels, config.height, config.width))
+        train_phone = torch.from_numpy(train_phone).to(device)
+        train_dslr = torch.from_numpy(train_dslr).to(device)
 
         # --------------------------------------------------------------------------------------------------------------
         #                                                Train generators
         # --------------------------------------------------------------------------------------------------------------
-        y_fake = models.gen_g(x)
-        x_rec = models.gen_f(y_fake)
-        # print('y_fake shape : ', y_fake.size())
-        # print('x_rec shape : ', x_rec.size())
+        enhanced = models.gen_g(train_phone) #No Initialization?
+        phone_rec = models.gen_f(enhanced)
 
-        # content loss
-        feat_x = get_feature(vgg19, x, config.content_id, device)
-        feat_x_rec = get_feature(vgg19, x_rec, config.content_id, device)
-        # print('feat_x shape : ', feat_x.size())
-        # print('feat_x_rec : ', feat_x_rec.size())
-        loss_content = torch.pow(feat_x.detach() - feat_x_rec, 2).mean()
+        # 1) Content consistency loss
+        phone_vgg = get_feature(vgg19, train_phone, config.content_id, device)
+        phone_rec_vgg = get_feature(vgg19, phone_rec, config.content_id, device)
+        # print('phone_vgg shape : ', phone_vgg.size())
+        # print('phone_rec_vgg : ', phone_rec_vgg.size())
+        loss_content = torch.pow(phone_vgg.detach() - phone_rec_vgg, 2).mean() #?
 
         # color loss
         # gaussian blur image for discriminator_c
-        fake_blur = gaussian_blur(y_fake, config.kernel_size, config.sigma, config.channels, device)
+        fake_blur = gaussian_blur(enhanced, config.kernel_size, config.sigma, config.channels, device)
         # print('fake blur image shape : ', fake_blur.size())
         # print('real blur image shape : ', real_blur.size())
         logits_fake_blur = models.dis_c(fake_blur)
@@ -76,7 +73,7 @@ def train(models, device):
 
         # texture loss
         # gray-scale image for discriminator_t
-        fake_gray = gray_scale(y_fake)
+        fake_gray = gray_scale(enhanced)
         # print('fake grayscale image shape : ', fake_gray.size())
         # print('real grayscale image shape : ', real_gray.size())
         logits_fake_gray = models.dis_t(fake_gray)
@@ -84,8 +81,8 @@ def train(models, device):
 
         # total variation loss
         # need to know why it is calculated this way
-        height_tv = torch.pow(y_fake[:, :, 1:, :] - y_fake[:, :, :config.height - 1, :], 2).mean()
-        width_tv = torch.pow(y_fake[:, :, :, 1:] - y_fake[:, :, :, :config.width - 1], 2).mean()
+        height_tv = torch.pow(enhanced[:, :, 1:, :] - enhanced[:, :, :config.height - 1, :], 2).mean()
+        width_tv = torch.pow(enhanced[:, :, :, 1:] - enhanced[:, :, :, :config.width - 1], 2).mean()
         loss_tv = height_tv + width_tv
 
         # all loss sum
@@ -100,16 +97,16 @@ def train(models, device):
         # --------------------------------------------------------------------------------------------------------------
         #                                              Train discriminators
         # --------------------------------------------------------------------------------------------------------------
-        y_fake = models.gen_g(x)
+        enhanced = models.gen_g(train_phone)
 
-        fake_blur = gaussian_blur(y_fake, config.kernel_size, config.sigma, config.channels, device)
-        real_blur = gaussian_blur(y_real, config.kernel_size, config.sigma, config.channels, device)
+        fake_blur = gaussian_blur(enhanced, config.kernel_size, config.sigma, config.channels, device)
+        real_blur = gaussian_blur(train_dslr, config.kernel_size, config.sigma, config.channels, device)
         logits_fake_blur = models.dis_c(fake_blur.detach())
         logits_real_blur = models.dis_c(real_blur.detach())
         loss_dc = models.criterion(logits_real_blur, true_labels) + models.criterion(logits_fake_blur, false_labels)
 
-        fake_gray = gray_scale(y_fake)
-        real_gray = gray_scale(y_real)
+        fake_gray = gray_scale(enhanced)
+        real_gray = gray_scale(train_dslr)
         logits_fake_gray = models.dis_t(fake_gray.detach())
         logits_real_gray = models.dis_t(real_gray.detach())
         loss_dt = models.criterion(logits_real_gray, true_labels) + models.criterion(logits_fake_gray, false_labels)
@@ -133,10 +130,10 @@ def train(models, device):
             sample_path = os.path.join(config.sample_dir, config.phone)
             checkpoint_path = os.path.join(config.checkpoint_dir, config.phone)
 
-            utils.save_image(x, os.path.join(sample_path, '{}-x.jpg'.format(idx + 1)))
-            utils.save_image(x_rec, os.path.join(sample_path, '{}-x_rec.jpg'.format(idx + 1)))
-            utils.save_image(y_fake, os.path.join(sample_path, '{}-y_fake.jpg'.format(idx + 1)))
-            utils.save_image(y_real, os.path.join(sample_path, '{}-y_real.jpg'.format(idx + 1)))
+            utils.save_image(train_phone, os.path.join(sample_path, '{}-x.jpg'.format(idx + 1)))
+            utils.save_image(phone_rec, os.path.join(sample_path, '{}-phone_rec.jpg'.format(idx + 1)))
+            utils.save_image(enhanced, os.path.join(sample_path, '{}-enhanced.jpg'.format(idx + 1)))
+            utils.save_image(train_dslr, os.path.join(sample_path, '{}-y_real.jpg'.format(idx + 1)))
             utils.save_image(fake_blur, os.path.join(sample_path, '{}-fake_blur.jpg'.format(idx + 1)))
             utils.save_image(real_blur, os.path.join(sample_path, '{}-real_blur.jpg'.format(idx + 1)))
             utils.save_image(fake_gray, os.path.join(sample_path, '{}-fake_gray.jpg'.format(idx + 1)))
