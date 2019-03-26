@@ -11,17 +11,6 @@ from models import *
 from utils import *
 
 
-def get_feature(model, img_tensor, content_id, device):
-    mean = torch.Tensor([0.485, 0.456, 0.406]).to(device).view(1, config.channels, 1, 1)
-    std = torch.Tensor([0.229, 0.224, 0.225]).to(device).view(1, config.channels, 1, 1)
-    img_normalized = (img_tensor - mean) / std
-    # print('img_normalized mean : ', img_normalized.permute(1, 0, 2, 3).reshape(config.channels, -1).mean(1))
-    # print('img_normalized std : ', img_normalized.permute(1, 0, 2, 3).reshape(config.channels, -1).std(1))
-    feature = model.features[:content_id](img_normalized)
-    # feature = feature.data.squeeze().cpu().numpy().transpose(1, 2, 0)
-    return feature
-
-
 def load_checkpoints(model):
     print('Loading the model checkpoints from iter {}...'.format(config.resume_iter))
     checkpoint_path = os.path.join(config.checkpoint_dir, config.phone)
@@ -57,10 +46,8 @@ def train(models, device):
         phone_rec = models.gen_f(enhanced)
 
         # 1) Content consistency loss
-        phone_vgg = get_feature(vgg19, train_phone, config.content_id, device)
-        phone_rec_vgg = get_feature(vgg19, phone_rec, config.content_id, device)
-        # print('phone_vgg shape : ', phone_vgg.size())
-        # print('phone_rec_vgg : ', phone_rec_vgg.size())
+        phone_vgg = get_content(vgg19, train_phone, config.content_id)
+        phone_rec_vgg = get_content(vgg19, phone_rec, config.content_id)
         loss_content = torch.pow(phone_vgg.detach() - phone_rec_vgg, 2).mean() #?
 
         # color loss

@@ -11,10 +11,11 @@ from torchvision import transforms
 from config import config
 
 
-def preprocess_data(img_tensor):
+def get_content(vgg19, img_tensor, content_id):
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
-    return normalize(img_tensor)
+    content = vgg19.features[:content_id](normalize(img_tensor))
+    return content
 
 
 def gaussian_kernel(kernel_size, nsig, channels):
