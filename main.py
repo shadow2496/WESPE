@@ -29,6 +29,8 @@ def load_checkpoints(model):
 
 def train(models, device):
     vgg19 = torchvision.models.vgg19(pretrained=True)
+    for param in vgg19.parameters():
+        param.required_grad = False
     vgg19.to(device)
 
     true_labels = torch.ones(config.batch_size, dtype=torch.long).to(device) #?

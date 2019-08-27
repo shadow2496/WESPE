@@ -14,6 +14,7 @@ def get_content(vgg19, img_tensor, content_id, device):
     mean = torch.tensor([0.485, 0.456, 0.406], device=device).view(3, 1, 1)
     std = torch.tensor([0.229, 0.224, 0.225], device=device).view(3, 1, 1)
     content = vgg19.features[:content_id]((img_tensor - mean) / std)
+
     return content
 
 
