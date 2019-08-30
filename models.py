@@ -1,11 +1,4 @@
-import torch.nn as nn
-import torch.optim as optim
-
-
-class Flatten(nn.Module):
-    def forward(self, x):
-        n = x.shape[0]
-        return x.view(n, 128 * 7 * 7)
+from torch import nn, optim
 
 
 class ResidualBlock(nn.Module):
@@ -71,20 +64,25 @@ class Discriminator(nn.Module):
         layers.append(nn.Conv2d(192, 128, kernel_size=3, padding=1, stride=2, bias=True))
         layers.append(nn.BatchNorm2d(128, momentum=0.1))
         layers.append(nn.LeakyReLU(0.2))
+        self.conv_layers = nn.Sequential(*layers)
 
-        layers.append(Flatten())
+        layers = list()
         layers.append(nn.Linear(128 * 7 * 7, 1024))
         layers.append(nn.LeakyReLU(0.2))
 
         layers.append(nn.Linear(1024, 2))
-        self.main = nn.Sequential(*layers)
+        self.fc_layers = nn.Sequential(*layers)
 
     def forward(self, x):
-        return self.main(x)
+        h = self.conv_layers(x)
+        h = h.view(h.size(0), 128 * 7 * 7)
+        return self.fc_layers(h)
 
 
-class WESPE:
+class WESPE(nn.Module):
     def __init__(self, config, device):
+        super(WESPE, self).__init__()
+
         self.gen_g = Generator()
         self.gen_f = Generator()
         self.gen_g.to(device)
@@ -102,3 +100,6 @@ class WESPE:
             self.t_optimizer = optim.Adam(self.dis_t.parameters(), lr=config.d_lr)
             self.criterion = nn.CrossEntropyLoss()
             self.criterion.to(device)
+
+    def forward(self, x):
+        pass
