@@ -19,27 +19,27 @@ class ResidualBlock(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, repeat_num=4):
+    def __init__(self, channels=64, repeat_num=4):
         super(Generator, self).__init__()
 
         layers = list()
-        layers.append(nn.Conv2d(3, 64, kernel_size=9, padding=4, bias=True))
+        layers.append(nn.Conv2d(3, channels, kernel_size=9, padding=4, bias=True))
         layers.append(nn.ReLU())
 
         for _ in range(repeat_num):
-            layers.append(ResidualBlock())
+            layers.append(ResidualBlock(channels))
 
-        layers.append(nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=True))
+        layers.append(nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=True))
         layers.append(nn.ReLU())
-        layers.append(nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=True))
+        layers.append(nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=True))
         layers.append(nn.ReLU())
 
-        layers.append(nn.Conv2d(64, 3, kernel_size=9, padding=4, bias=True))
+        layers.append(nn.Conv2d(channels, 3, kernel_size=9, padding=4, bias=True))
         layers.append(nn.Tanh())
-        self.main = nn.Sequential(*layers)
+        self.layers = nn.Sequential(*layers)
 
     def forward(self, x):
-        return self.main(x) * 0.58 + 0.5
+        return self.layers(x) * 0.58 + 0.5
 
 
 class Discriminator(nn.Module):
