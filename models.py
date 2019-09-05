@@ -9,6 +9,7 @@ class ResidualBlock(nn.Module):
             nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=True),
             nn.InstanceNorm2d(channels, affine=True),
             nn.ReLU(),
+
             nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=True),
             nn.InstanceNorm2d(channels, affine=True),
             nn.ReLU()
@@ -19,22 +20,21 @@ class ResidualBlock(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, channels=64, repeat_num=4):
+    def __init__(self, repeat_num=4):
         super(Generator, self).__init__()
 
         layers = list()
-        layers.append(nn.Conv2d(3, channels, kernel_size=9, padding=4, bias=True))
+        layers.append(nn.Conv2d(3, 64, kernel_size=9, padding=4, bias=True))
         layers.append(nn.ReLU())
 
         for _ in range(repeat_num):
-            layers.append(ResidualBlock(channels))
+            layers.append(ResidualBlock(64))
 
-        layers.append(nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=True))
+        layers.append(nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=True))
         layers.append(nn.ReLU())
-        layers.append(nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=True))
+        layers.append(nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=True))
         layers.append(nn.ReLU())
-
-        layers.append(nn.Conv2d(channels, 3, kernel_size=9, padding=4, bias=True))
+        layers.append(nn.Conv2d(64, 3, kernel_size=9, padding=4, bias=True))
         layers.append(nn.Tanh())
         self.layers = nn.Sequential(*layers)
 
@@ -43,40 +43,42 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, channels=3):
+    def __init__(self, in_channels, image_size=100):
         super(Discriminator, self).__init__()
 
-        layers = list()
-        layers.append(nn.Conv2d(channels, 48, kernel_size=11, padding=5, stride=4, bias=True))
-        layers.append(nn.LeakyReLU(0.2))
+        self.conv_layers = nn.Sequential(
+            nn.Conv2d(in_channels, 48, kernel_size=11, padding=5, stride=4, bias=True),
+            nn.LeakyReLU(0.2),
 
-        layers.append(nn.Conv2d(48, 128, kernel_size=5, padding=2, stride=2, bias=True))
-        layers.append(nn.BatchNorm2d(128, momentum=0.1))
-        layers.append(nn.LeakyReLU(0.2))
+            nn.Conv2d(48, 128, kernel_size=5, padding=2, stride=2, bias=True),
+            nn.InstanceNorm2d(128, affine=True),
+            nn.LeakyReLU(0.2),
 
-        layers.append(nn.Conv2d(128, 192, kernel_size=3, padding=1, bias=True))
-        layers.append(nn.BatchNorm2d(192, momentum=0.1))
-        layers.append(nn.LeakyReLU(0.2))
+            nn.Conv2d(128, 192, kernel_size=3, padding=1, bias=True),
+            nn.InstanceNorm2d(192, affine=True),
+            nn.LeakyReLU(0.2),
 
-        layers.append(nn.Conv2d(192, 192, kernel_size=3, padding=1, bias=True))
-        layers.append(nn.BatchNorm2d(192, momentum=0.1))
-        layers.append(nn.LeakyReLU(0.2))
+            nn.Conv2d(192, 192, kernel_size=3, padding=1, bias=True),
+            nn.InstanceNorm2d(192, affine=True),
+            nn.LeakyReLU(0.2),
 
-        layers.append(nn.Conv2d(192, 128, kernel_size=3, padding=1, stride=2, bias=True))
-        layers.append(nn.BatchNorm2d(128, momentum=0.1))
-        layers.append(nn.LeakyReLU(0.2))
-        self.conv_layers = nn.Sequential(*layers)
+            nn.Conv2d(192, 128, kernel_size=3, padding=1, stride=2, bias=True),
+            nn.InstanceNorm2d(128, affine=True),
+            nn.LeakyReLU(0.2)
+        )
 
-        layers = list()
-        layers.append(nn.Linear(128 * 7 * 7, 1024))
-        layers.append(nn.LeakyReLU(0.2))
+        feature_size = (image_size + 15) // 16
+        in_features = 128 * feature_size * feature_size
 
-        layers.append(nn.Linear(1024, 2))
-        self.fc_layers = nn.Sequential(*layers)
+        self.fc_layers = nn.Sequential(
+            nn.Linear(in_features, 1024),
+            nn.LeakyReLU(0.2),
+            nn.Linear(1024, 1)
+        )
 
     def forward(self, x):
         h = self.conv_layers(x)
-        h = h.view(h.size(0), 128 * 7 * 7)
+        h = h.view(h.size(0), -1)
         return self.fc_layers(h)
 
 
@@ -90,8 +92,8 @@ class WESPE(nn.Module):
         self.gen_f.to(device)
 
         if config.train:
-            self.dis_c = Discriminator()
-            self.dis_t = Discriminator(channels=1)
+            self.dis_c = Discriminator(in_channels=3)
+            self.dis_t = Discriminator(in_channels=1)
             self.dis_c.to(device)
             self.dis_t.to(device)
 
