@@ -2,19 +2,20 @@ from torch import nn, optim
 
 
 class ResidualBlock(nn.Module):
-    def __init__(self):
+    def __init__(self, channels):
         super(ResidualBlock, self).__init__()
-        self.main = nn.Sequential(
-            nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=True),
-            nn.BatchNorm2d(64, momentum=0.1),
+
+        self.layers = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=True),
+            nn.InstanceNorm2d(channels, affine=True),
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=True),
-            nn.BatchNorm2d(64, momentum=0.1),
+            nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=True),
+            nn.InstanceNorm2d(channels, affine=True),
             nn.ReLU()
         )
 
     def forward(self, x):
-        return x + self.main(x)
+        return x + self.layers(x)
 
 
 class Generator(nn.Module):
