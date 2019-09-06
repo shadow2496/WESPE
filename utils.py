@@ -5,7 +5,7 @@ from scipy import stats as st
 from scipy import signal
 from scipy.ndimage.filters import convolve
 import torch
-import torch.nn as nn
+from torch.nn import functional as F
 
 from config import config
 
@@ -34,31 +34,10 @@ def gaussian_kernel(kernel_size, sigma, channels, device):
     return out_filter
 
 
-def filter_forward(image, filters):
-    # image = torch.from_numpy(image)
-    # image = np.reshape(image, newshape=(-1, channels, height, width))
-    return filters(image)
-
-
-def kernel_to_conv2d(kernel_size, nsig, channels):
-    """
-    kernel_size : filter width and height length
-    nsig        : range of gaussian distribution
-    channels    : choose how many channel you use, default is 3
-    """
-    out_filter = gaussian_kernel(kernel_size, nsig, channels)
-    gaussian_filter = nn.Conv2d(channels, channels, kernel_size, groups=channels, bias=False, padding=10)
-    gaussian_filter.weight.data = out_filter
-    gaussian_filter.weight.requires_grad = False
-
-    return gaussian_filter
-
-
 def gaussian_blur(img_tensor, kernel_size, sigma, channels, device):
-    out_filter = kernel_to_conv2d(kernel_size, sigma, channels).to(device)
-    tensor_image = filter_forward(img_tensor, out_filter)
+    out_filter = gaussian_kernel(kernel_size, sigma, channels, device)
 
-    return tensor_image
+    return F.conv2d(img_tensor, out_filter, padding=kernel_size // 2, groups=channels)
 
 
 def gray_scale(image):
