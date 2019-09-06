@@ -83,26 +83,27 @@ class Discriminator(nn.Module):
 
 
 class WESPE(nn.Module):
-    def __init__(self, config, device):
+    def __init__(self, config):
         super(WESPE, self).__init__()
 
+        self.train = config.train
         self.gen_g = Generator()
-        self.gen_f = Generator()
-        self.gen_g.to(device)
-        self.gen_f.to(device)
 
-        if config.train:
+        if self.train:
+            self.gen_f = Generator()
             self.dis_c = Discriminator(in_channels=3)
             self.dis_t = Discriminator(in_channels=1)
-            self.dis_c.to(device)
-            self.dis_t.to(device)
 
             self.g_optimizer = optim.Adam(self.gen_g.parameters(), lr=config.g_lr)
             self.f_optimizer = optim.Adam(self.gen_f.parameters(), lr=config.g_lr)
             self.c_optimizer = optim.Adam(self.dis_c.parameters(), lr=config.d_lr)
             self.t_optimizer = optim.Adam(self.dis_t.parameters(), lr=config.d_lr)
             self.criterion = nn.CrossEntropyLoss()
-            self.criterion.to(device)
 
     def forward(self, x):
-        pass
+        y = self.gen_g(x)
+        if self.train:
+            return y, None
+        else:
+            x_rec = self.gen_f(y)
+            return y, x_rec

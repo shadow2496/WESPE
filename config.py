@@ -1,5 +1,6 @@
 from easydict import EasyDict
 
+
 config = EasyDict()
 
 config.dataset_dir = './datasets/dped/'

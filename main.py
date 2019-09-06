@@ -6,9 +6,9 @@ from torchvision import utils
 from skimage.measure import compare_ssim
 
 from config import config
-from load_dataset import *
-from models import *
-from utils import *
+from load_dataset import load_train_data, load_test_data
+from models import WESPE
+from utils import *  #?
 
 
 def load_checkpoints(model):
@@ -44,8 +44,7 @@ def train(models, device):
         # --------------------------------------------------------------------------------------------------------------
         #                                                Train generators
         # --------------------------------------------------------------------------------------------------------------
-        enhanced = models.gen_g(train_phone) #No Initialization?
-        phone_rec = models.gen_f(enhanced)
+        enhanced, phone_rec = models(train_phone)
 
         # 1) Content consistency loss
         phone_vgg = get_content(vgg19, train_phone, config.content_id, device)
@@ -181,7 +180,7 @@ def main():
         os.makedirs(os.path.join(config.checkpoint_dir, config.phone))
 
     device = torch.device('cuda:0' if config.use_cuda else 'cpu')
-    models = WESPE(config, device)
+    models = WESPE(config).to(device)
     if config.resume_iter != 0:
         load_checkpoints(models)
 
