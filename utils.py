@@ -1,7 +1,7 @@
 import math
 
 import numpy as np
-import scipy.stats as st
+from scipy import stats as st
 from scipy import signal
 from scipy.ndimage.filters import convolve
 import torch
@@ -18,25 +18,18 @@ def get_content(vgg19, img_tensor, content_id, device):
     return content
 
 
-def gaussian_kernel(kernel_size, nsig, channels):
-    """
-    kernel_size : filter width and height length
-    nsig        : range of gaussian distribution
-    channels    : choose how many channel you use, default is 3
-    """
-    interval = (2 * nsig + 1) / kernel_size
-    x = np.linspace(start=-nsig-interval / 2, stop=nsig + interval / 2, num=kernel_size+1)
+def gaussian_kernel(kernel_size, sigma, channels, device):
+    interval = (2 * sigma + 1) / kernel_size
+    x = np.linspace(-sigma - interval / 2, sigma + interval / 2, kernel_size + 1)
 
-    new_x = st.norm.cdf(x)
-    kernel1d = np.diff(new_x)
+    kern1d = np.diff(st.norm.cdf(x))
+    kernel_raw = np.sqrt(np.outer(kern1d, kern1d))
+    kernel = kernel_raw / kernel_raw.sum()
 
-    kernel_raw = np.sqrt(np.outer(kernel1d, kernel1d))
-    kernel = kernel_raw / np.sum(kernel_raw)  # normalize
-
-    out_filter = np.array(kernel, dtype=np.float32)
-    out_filter = np.reshape(out_filter, newshape=(1, 1, kernel_size, kernel_size))  # 4-dimensional shape 21, 21, 1, 1
-    out_filter = np.repeat(out_filter, channels, axis=0)
-    out_filter = torch.from_numpy(out_filter)
+    out_filter = np.float32(kernel)
+    out_filter = out_filter.reshape((1, 1, kernel_size, kernel_size))
+    out_filter = out_filter.repeat(channels, axis=0)
+    out_filter = torch.as_tensor(out_filter, device=device)
 
     return out_filter
 
@@ -61,9 +54,9 @@ def kernel_to_conv2d(kernel_size, nsig, channels):
     return gaussian_filter
 
 
-def gaussian_blur(image, kernel_size, sigma, channels, device):
+def gaussian_blur(img_tensor, kernel_size, sigma, channels, device):
     out_filter = kernel_to_conv2d(kernel_size, sigma, channels).to(device)
-    tensor_image = filter_forward(image, out_filter)
+    tensor_image = filter_forward(img_tensor, out_filter)
 
     return tensor_image
 
