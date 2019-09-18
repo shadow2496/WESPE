@@ -17,11 +17,12 @@ config.content_id = 36  # VGG19 ReLU5_4
 config.kernel_size = 21
 config.sigma = 3
 
-config.g_lr = 2e-4 #?
-config.d_lr = 2e-4 #?
-config.lambda_c = 5 * 1e-3
-config.lambda_t = 5 * 1e-3
-config.lambda_tv = 10
+config.gen_lr = 5e-4
+config.dis_lr = 5e-4
+config.w_content = 1
+config.w_color = 5e-3
+config.w_texture = 5e-3
+config.w_tv = 10
 
 config.resume_iter = 0
 config.train_iters = 20000

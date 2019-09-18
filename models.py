@@ -94,16 +94,18 @@ class WESPE(nn.Module):
             self.dis_c = Discriminator(in_channels=3)
             self.dis_t = Discriminator(in_channels=1)
 
-            self.g_optimizer = optim.Adam(self.gen_g.parameters(), lr=config.g_lr)
-            self.f_optimizer = optim.Adam(self.gen_f.parameters(), lr=config.g_lr)
-            self.c_optimizer = optim.Adam(self.dis_c.parameters(), lr=config.d_lr)
-            self.t_optimizer = optim.Adam(self.dis_t.parameters(), lr=config.d_lr)
-            self.criterion = nn.CrossEntropyLoss()
+            self.mse_criterion = nn.MSELoss()
+            self.bce_criterion = nn.BCEWithLogitsLoss()
+
+            gen_params = list(self.gen_g.parameters()) + list(self.gen_f.parameters())
+            dis_params = list(self.dis_c.parameters()) + list(self.dis_t.parameters())
+            self.gen_optimizer = optim.Adam(gen_params, lr=config.gen_lr)
+            self.dis_optimizer = optim.Adam(dis_params, lr=config.dis_lr)
 
     def forward(self, x):
         y = self.gen_g(x)
         if self.train:
-            return y, None
-        else:
             x_rec = self.gen_f(y)
             return y, x_rec
+        else:
+            return y, None

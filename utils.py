@@ -42,7 +42,7 @@ def gaussian_blur(img_tensor, kernel_size, sigma, channels, device):
 
 def rgb_to_gray(img_tensor, device):
     rgb_weights = torch.tensor([0.299, 0.587, 0.114], device=device).view(3, 1, 1)
-    gray_image = torch.sum(img_tensor * rgb_weights, 1)
+    gray_image = torch.unsqueeze(torch.sum(img_tensor * rgb_weights, 1), 1)
 
     return gray_image
 

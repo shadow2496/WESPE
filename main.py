@@ -33,13 +33,41 @@ def train(models, device):
         param.required_grad = False
     vgg19.to(device)
 
-    true_labels = torch.ones(config.batch_size, dtype=torch.long).to(device) #?
-    false_labels = torch.zeros(config.batch_size, dtype=torch.long).to(device) #?
+    real_labels = torch.ones((config.batch_size, 1), device=device)
+    fake_labels = torch.zeros((config.batch_size, 1), device=device)
     for idx in range(config.resume_iter, config.train_iters):
         train_phone, train_dslr = load_train_data(config.dataset_dir, config.phone, config.batch_size,
                                                   (config.channels, config.height, config.width))
         train_phone = torch.as_tensor(train_phone, device=device)
         train_dslr = torch.as_tensor(train_dslr, device=device)
+
+        # --------------------------------------------------------------------------------------------------------------
+        #                                              Train discriminators
+        # --------------------------------------------------------------------------------------------------------------
+        enhanced, _ = models(train_phone)
+
+        # 1) Adversarial color loss
+        dslr_blur = gaussian_blur(train_dslr, config.kernel_size, config.sigma, config.channels, device)
+        dslr_blur_logits = models.dis_c(dslr_blur.detach()) #?
+        enhanced_blur = gaussian_blur(enhanced, config.kernel_size, config.sigma, config.channels, device)
+        enhanced_blur_logits = models.dis_c(enhanced_blur.detach()) #?
+        dis_loss_color = models.bce_criterion(dslr_blur_logits, real_labels) \
+                         + models.bce_criterion(enhanced_blur_logits, fake_labels)
+
+        # 2) Adversarial texture loss
+        dslr_gray = rgb_to_gray(train_dslr, device)
+        dslr_gray_logits = models.dis_t(dslr_gray.detach()) #?
+        enhanced_gray = rgb_to_gray(enhanced, device)
+        enhanced_gray_logits = models.dis_t(enhanced_gray.detach()) #?
+        dis_loss_texture = models.bce_criterion(dslr_gray_logits, real_labels) \
+                           + models.bce_criterion(enhanced_gray_logits, fake_labels)
+
+        # Sum of losses
+        dis_loss = dis_loss_color + dis_loss_texture
+
+        models.dis_optimizer.zero_grad()
+        dis_loss.backward()
+        models.dis_optimizer.step()
 
         # --------------------------------------------------------------------------------------------------------------
         #                                                Train generators
@@ -49,70 +77,36 @@ def train(models, device):
         # 1) Content consistency loss
         phone_vgg = get_content(vgg19, train_phone, config.content_id, device)
         phone_rec_vgg = get_content(vgg19, phone_rec, config.content_id, device)
-        loss_content = torch.pow(phone_vgg.detach() - phone_rec_vgg, 2).mean() #?
+        gen_loss_content = models.mse_criterion(phone_vgg, phone_rec_vgg)
 
-        # color loss
-        # gaussian blur image for discriminator_c
-        fake_blur = gaussian_blur(enhanced, config.kernel_size, config.sigma, config.channels, device)
-        # print('fake blur image shape : ', fake_blur.size())
-        # print('real blur image shape : ', real_blur.size())
-        logits_fake_blur = models.dis_c(fake_blur)
-        loss_c = models.criterion(logits_fake_blur, true_labels)
+        # 2) Adversarial color loss
+        enhanced_blur = gaussian_blur(enhanced, config.kernel_size, config.sigma, config.channels, device)
+        enhanced_blur_logits = models.dis_c(enhanced_blur)
+        gen_loss_color = models.bce_criterion(enhanced_blur_logits, real_labels)
 
-        # texture loss
-        # gray-scale image for discriminator_t
-        fake_gray = gray_scale(enhanced)
-        # print('fake grayscale image shape : ', fake_gray.size())
-        # print('real grayscale image shape : ', real_gray.size())
-        logits_fake_gray = models.dis_t(fake_gray)
-        loss_t = models.criterion(logits_fake_gray, true_labels)
+        # 3) Adversarial texture loss
+        enhanced_gray = rgb_to_gray(enhanced, device)
+        enhanced_gray_logits = models.dis_t(enhanced_gray)
+        gen_loss_texture = models.bce_criterion(enhanced_gray_logits, real_labels)
 
-        # total variation loss
-        # need to know why it is calculated this way
-        height_tv = torch.pow(enhanced[:, :, 1:, :] - enhanced[:, :, :config.height - 1, :], 2).mean()
-        width_tv = torch.pow(enhanced[:, :, :, 1:] - enhanced[:, :, :, :config.width - 1], 2).mean()
-        loss_tv = height_tv + width_tv
+        # 4) TV loss
+        y_tv = models.mse_criterion(enhanced[:, :, 1:, :], enhanced[:, :, :-1, :])
+        x_tv = models.mse_criterion(enhanced[:, :, :, 1:], enhanced[:, :, :, :-1])
+        gen_loss_tv = y_tv + x_tv
 
-        # all loss sum
-        gen_loss = loss_content + config.lambda_c * loss_c + config.lambda_t * loss_t + config.lambda_tv * loss_tv
+        # Sum of losses
+        gen_loss = config.w_content * gen_loss_content + config.w_color* gen_loss_color \
+                   + config.w_texture * gen_loss_texture + config.w_tv * gen_loss_tv
 
-        models.g_optimizer.zero_grad()
-        models.f_optimizer.zero_grad()
+        models.gen_optimizer.zero_grad()
         gen_loss.backward()
-        models.g_optimizer.step()
-        models.f_optimizer.step()
-
-        # --------------------------------------------------------------------------------------------------------------
-        #                                              Train discriminators
-        # --------------------------------------------------------------------------------------------------------------
-        enhanced = models.gen_g(train_phone)
-
-        fake_blur = gaussian_blur(enhanced, config.kernel_size, config.sigma, config.channels, device)
-        real_blur = gaussian_blur(train_dslr, config.kernel_size, config.sigma, config.channels, device)
-        logits_fake_blur = models.dis_c(fake_blur.detach())
-        logits_real_blur = models.dis_c(real_blur.detach())
-        loss_dc = models.criterion(logits_real_blur, true_labels) + models.criterion(logits_fake_blur, false_labels)
-
-        fake_gray = gray_scale(enhanced)
-        real_gray = gray_scale(train_dslr)
-        logits_fake_gray = models.dis_t(fake_gray.detach())
-        logits_real_gray = models.dis_t(real_gray.detach())
-        loss_dt = models.criterion(logits_real_gray, true_labels) + models.criterion(logits_fake_gray, false_labels)
-
-        # dis_loss = config.lambda_c * loss_dc + config.lambda_t * loss_dt
-        dis_loss = loss_dc + loss_dt
-
-        models.c_optimizer.zero_grad()
-        models.t_optimizer.zero_grad()
-        dis_loss.backward()
-        models.c_optimizer.step()
-        models.t_optimizer.step()
+        models.gen_optimizer.step()
 
         print('Iteration : {}/{}, Gen_loss : {:.4f}, Dis_loss : {:.4f}'.format(
             idx + 1, config.train_iters, gen_loss.data, dis_loss.data))
         print('Loss_content : {:.4f}, Loss_c : {:.4f}, Loss_t : {:.4f}, Loss_tv: {:.4f}'.format(
-            loss_content.data, loss_c.data, loss_t.data, loss_tv.data))
-        print('Loss_dc : {:.4f}, Loss_dt : {:.4f}'.format(loss_dc.data, loss_dt.data))
+            gen_loss_content.data, gen_loss_color.data, gen_loss_texture.data, gen_loss_tv.data))
+        print('Loss_dc : {:.4f}, Loss_dt : {:.4f}'.format(dis_loss_color.data, dis_loss_texture.data))
 
         if (idx + 1) % 1000 == 0:
             sample_path = os.path.join(config.sample_dir, config.phone)
@@ -122,10 +116,10 @@ def train(models, device):
             utils.save_image(phone_rec, os.path.join(sample_path, '{}-phone_rec.jpg'.format(idx + 1)))
             utils.save_image(enhanced, os.path.join(sample_path, '{}-enhanced.jpg'.format(idx + 1)))
             utils.save_image(train_dslr, os.path.join(sample_path, '{}-y_real.jpg'.format(idx + 1)))
-            utils.save_image(fake_blur, os.path.join(sample_path, '{}-fake_blur.jpg'.format(idx + 1)))
-            utils.save_image(real_blur, os.path.join(sample_path, '{}-real_blur.jpg'.format(idx + 1)))
-            utils.save_image(fake_gray, os.path.join(sample_path, '{}-fake_gray.jpg'.format(idx + 1)))
-            utils.save_image(real_gray, os.path.join(sample_path, '{}-real_gray.jpg'.format(idx + 1)))
+            utils.save_image(enhanced_blur, os.path.join(sample_path, '{}-fake_blur.jpg'.format(idx + 1)))
+            utils.save_image(dslr_blur, os.path.join(sample_path, '{}-real_blur.jpg'.format(idx + 1)))
+            utils.save_image(enhanced_gray, os.path.join(sample_path, '{}-fake_gray.jpg'.format(idx + 1)))
+            utils.save_image(dslr_gray, os.path.join(sample_path, '{}-real_gray.jpg'.format(idx + 1)))
 
             torch.save(models.gen_g.state_dict(), os.path.join(checkpoint_path, '{}-Gen_g.ckpt'.format(idx + 1)))
             torch.save(models.gen_f.state_dict(), os.path.join(checkpoint_path, '{}-Gen_f.ckpt'.format(idx + 1)))
