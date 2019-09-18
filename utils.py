@@ -18,7 +18,7 @@ def get_content(vgg19, img_tensor, content_id, device):
     return content
 
 
-def gaussian_kernel(kernel_size, sigma, channels, device):
+def get_gaussian_kernel(kernel_size, sigma, channels, device):
     interval = (2 * sigma + 1) / kernel_size
     x = np.linspace(-sigma - interval / 2, sigma + interval / 2, kernel_size + 1)
 
@@ -35,23 +35,14 @@ def gaussian_kernel(kernel_size, sigma, channels, device):
 
 
 def gaussian_blur(img_tensor, kernel_size, sigma, channels, device):
-    out_filter = gaussian_kernel(kernel_size, sigma, channels, device)
+    out_filter = get_gaussian_kernel(kernel_size, sigma, channels, device)
 
     return F.conv2d(img_tensor, out_filter, padding=kernel_size // 2, groups=channels)
 
 
-def gray_scale(image):
-    """
-    image  : (batch_size, image_size), image_size = image_width * image_height * channels
-
-    return : (batch_size, image_size with one channel)
-    """
-
-    # rgb_image = np.reshape(image, newshape=(-1, channels, height, width)) # 3 channel which is rgb
-    # gray_image = np.reshape(gray_image, newshape=(-1, 1, height, width))
-    # gray_image = torch.from_numpy(gray_image)
-
-    gray_image = torch.unsqueeze(image[:, 0] * 0.299 + image[:, 1] * 0.587 + image[:, 2] * 0.114, 1)
+def rgb_to_gray(img_tensor, device):
+    rgb_weights = torch.tensor([0.299, 0.587, 0.114], device=device).view(3, 1, 1)
+    gray_image = torch.sum(img_tensor * rgb_weights, 1)
 
     return gray_image
 
