@@ -44,21 +44,21 @@ def train(models, device):
         # --------------------------------------------------------------------------------------------------------------
         #                                              Train discriminators
         # --------------------------------------------------------------------------------------------------------------
-        enhanced, _ = models(train_phone)
+        enhanced, phone_rec = models(train_phone)
 
         # 1) Adversarial color loss
         dslr_blur = gaussian_blur(train_dslr, config.kernel_size, config.sigma, config.channels, device)
-        dslr_blur_logits = models.dis_c(dslr_blur.detach()) #?
-        enhanced_blur = gaussian_blur(enhanced, config.kernel_size, config.sigma, config.channels, device)
-        enhanced_blur_logits = models.dis_c(enhanced_blur.detach()) #?
+        dslr_blur_logits = models.dis_c(dslr_blur)
+        enhanced_blur = gaussian_blur(enhanced.detach(), config.kernel_size, config.sigma, config.channels, device)
+        enhanced_blur_logits = models.dis_c(enhanced_blur)
         dis_loss_color = models.bce_criterion(dslr_blur_logits, real_labels) \
                          + models.bce_criterion(enhanced_blur_logits, fake_labels)
 
         # 2) Adversarial texture loss
         dslr_gray = rgb_to_gray(train_dslr, device)
-        dslr_gray_logits = models.dis_t(dslr_gray.detach()) #?
-        enhanced_gray = rgb_to_gray(enhanced, device)
-        enhanced_gray_logits = models.dis_t(enhanced_gray.detach()) #?
+        dslr_gray_logits = models.dis_t(dslr_gray)
+        enhanced_gray = rgb_to_gray(enhanced.detach(), device)
+        enhanced_gray_logits = models.dis_t(enhanced_gray)
         dis_loss_texture = models.bce_criterion(dslr_gray_logits, real_labels) \
                            + models.bce_criterion(enhanced_gray_logits, fake_labels)
 
@@ -72,8 +72,6 @@ def train(models, device):
         # --------------------------------------------------------------------------------------------------------------
         #                                                Train generators
         # --------------------------------------------------------------------------------------------------------------
-        enhanced, phone_rec = models(train_phone)
-
         # 1) Content consistency loss
         phone_vgg = get_content(vgg19, train_phone, config.content_id, device)
         phone_rec_vgg = get_content(vgg19, phone_rec, config.content_id, device)
