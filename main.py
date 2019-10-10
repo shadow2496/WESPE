@@ -100,30 +100,31 @@ def train(models, device):
         gen_loss.backward()
         models.gen_optimizer.step()
 
-        print('Iteration : {}/{}, Gen_loss : {:.4f}, Dis_loss : {:.4f}'.format(
-            idx + 1, config.train_iters, gen_loss.data, dis_loss.data))
-        print('Loss_content : {:.4f}, Loss_c : {:.4f}, Loss_t : {:.4f}, Loss_tv: {:.4f}'.format(
-            gen_loss_content.data, gen_loss_color.data, gen_loss_texture.data, gen_loss_tv.data))
-        print('Loss_dc : {:.4f}, Loss_dt : {:.4f}'.format(dis_loss_color.data, dis_loss_texture.data))
+        if (idx + 1) % config.print_step == 0:
+            print("Iteration: {}/{}, gen_loss: {:.4f}, dis_loss: {:.4f}".format(
+                idx + 1, config.train_iters, gen_loss.item(), dis_loss.item()))
+            print("gen_loss_content: {:.4f}, gen_loss_color: {:.4f}, gen_loss_texture: {:.4f}, gen_loss_tv: {:.4f}".format(
+                gen_loss_content.item(), gen_loss_color.item(), gen_loss_texture.item(), gen_loss_tv.item()))
+            print("dis_loss_color: {:.4f}, dis_loss_texture: {:.4f}".format(dis_loss_color.item(), dis_loss_texture.item()))
 
-        if (idx + 1) % 1000 == 0:
+        if (idx + 1) % config.checkpoint_step == 0:
             sample_path = os.path.join(config.sample_dir, config.phone)
             checkpoint_path = os.path.join(config.checkpoint_dir, config.phone)
 
-            utils.save_image(train_phone, os.path.join(sample_path, '{}-x.jpg'.format(idx + 1)))
-            utils.save_image(phone_rec, os.path.join(sample_path, '{}-phone_rec.jpg'.format(idx + 1)))
-            utils.save_image(enhanced, os.path.join(sample_path, '{}-enhanced.jpg'.format(idx + 1)))
-            utils.save_image(train_dslr, os.path.join(sample_path, '{}-y_real.jpg'.format(idx + 1)))
-            utils.save_image(enhanced_blur, os.path.join(sample_path, '{}-fake_blur.jpg'.format(idx + 1)))
-            utils.save_image(dslr_blur, os.path.join(sample_path, '{}-real_blur.jpg'.format(idx + 1)))
-            utils.save_image(enhanced_gray, os.path.join(sample_path, '{}-fake_gray.jpg'.format(idx + 1)))
-            utils.save_image(dslr_gray, os.path.join(sample_path, '{}-real_gray.jpg'.format(idx + 1)))
+            utils.save_image(train_phone, os.path.join(sample_path, '{:05d}-phone.jpg'.format(idx + 1)))
+            utils.save_image(phone_rec, os.path.join(sample_path, '{:05d}-phone_rec.jpg'.format(idx + 1)))
+            utils.save_image(enhanced, os.path.join(sample_path, '{:05d}-enhanced.jpg'.format(idx + 1)))
+            utils.save_image(train_dslr, os.path.join(sample_path, '{:05d}-dslr.jpg'.format(idx + 1)))
+            utils.save_image(enhanced_blur, os.path.join(sample_path, '{:05d}-enhanced_blur.jpg'.format(idx + 1)))
+            utils.save_image(dslr_blur, os.path.join(sample_path, '{:05d}-dslr_blur.jpg'.format(idx + 1)))
+            utils.save_image(enhanced_gray, os.path.join(sample_path, '{:05d}-enhanced_gray.jpg'.format(idx + 1)))
+            utils.save_image(dslr_gray, os.path.join(sample_path, '{:05d}-dslr_gray.jpg'.format(idx + 1)))
 
-            torch.save(models.gen_g.state_dict(), os.path.join(checkpoint_path, '{}-Gen_g.ckpt'.format(idx + 1)))
-            torch.save(models.gen_f.state_dict(), os.path.join(checkpoint_path, '{}-Gen_f.ckpt'.format(idx + 1)))
-            torch.save(models.dis_c.state_dict(), os.path.join(checkpoint_path, '{}-Dis_c.ckpt'.format(idx + 1)))
-            torch.save(models.dis_t.state_dict(), os.path.join(checkpoint_path, '{}-Dis_t.ckpt'.format(idx + 1)))
-            print('Saved intermediate images and model checkpoints.')
+            torch.save(models.gen_g.state_dict(), os.path.join(checkpoint_path, '{:05d}-Gen_g.ckpt'.format(idx + 1)))
+            torch.save(models.gen_f.state_dict(), os.path.join(checkpoint_path, '{:05d}-Gen_f.ckpt'.format(idx + 1)))
+            torch.save(models.dis_c.state_dict(), os.path.join(checkpoint_path, '{:05d}-Dis_c.ckpt'.format(idx + 1)))
+            torch.save(models.dis_t.state_dict(), os.path.join(checkpoint_path, '{:05d}-Dis_t.ckpt'.format(idx + 1)))
+            print("Saved intermediate images and model checkpoints.")
 
 
 def test(model, device):
@@ -176,9 +177,11 @@ def main():
     if config.resume_iter != 0:
         load_checkpoints(models)
 
-    if config.train:
+    if config.is_train:
+        models.train()
         train(models, device)
     else:
+        models.eval()
         test(models, device)
 
 

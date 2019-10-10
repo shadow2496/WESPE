@@ -24,7 +24,10 @@ config.w_color = 5e-3
 config.w_texture = 5e-3
 config.w_tv = 10
 
+config.checkpoint_step = 1000
+# config.tensorboard_step = 10
+config.print_step = 10
 config.resume_iter = 0
 config.train_iters = 20000
-config.train = True
+config.is_train = True
 config.use_cuda = True

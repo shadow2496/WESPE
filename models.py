@@ -86,10 +86,10 @@ class WESPE(nn.Module):
     def __init__(self, config):
         super(WESPE, self).__init__()
 
-        self.train = config.train
+        self.is_train = config.is_train
         self.gen_g = Generator()
 
-        if self.train:
+        if self.is_train:
             self.gen_f = Generator()
             self.dis_c = Discriminator(in_channels=3)
             self.dis_t = Discriminator(in_channels=1)
@@ -104,7 +104,7 @@ class WESPE(nn.Module):
 
     def forward(self, x):
         y = self.gen_g(x)
-        if self.train:
+        if self.is_train:
             x_rec = self.gen_f(y)
             return y, x_rec
         else:
