@@ -1,8 +1,8 @@
 import os
 
+from tensorboardX import SummaryWriter
 import torch
 import torchvision.models
-from torchvision import utils
 from skimage.measure import compare_ssim
 
 from config import config
@@ -27,7 +27,7 @@ def load_checkpoints(model):
         model.dis_t.load_state_dict(torch.load(dis_t_path, map_location=lambda storage, loc: storage))
 
 
-def train(models, device):
+def train(models, writer, device):
     vgg19 = torchvision.models.vgg19(pretrained=True)
     for param in vgg19.parameters():
         param.required_grad = False
@@ -35,7 +35,7 @@ def train(models, device):
 
     real_labels = torch.ones((config.batch_size, 1), device=device)
     fake_labels = torch.zeros((config.batch_size, 1), device=device)
-    for idx in range(config.resume_iter, config.train_iters):
+    for idx in range(config.load_iter, config.train_iters):
         train_phone, train_dslr = load_train_data(config.dataset_dir, config.phone, config.batch_size,
                                                   (config.channels, config.height, config.width))
         train_phone = torch.as_tensor(train_phone, device=device)
@@ -93,7 +93,7 @@ def train(models, device):
         gen_loss_tv = y_tv + x_tv
 
         # Sum of losses
-        gen_loss = config.w_content * gen_loss_content + config.w_color* gen_loss_color \
+        gen_loss = config.w_content * gen_loss_content + config.w_color * gen_loss_color \
                    + config.w_texture * gen_loss_texture + config.w_tv * gen_loss_tv
 
         models.gen_optimizer.zero_grad()
@@ -107,24 +107,30 @@ def train(models, device):
                 gen_loss_content.item(), gen_loss_color.item(), gen_loss_texture.item(), gen_loss_tv.item()))
             print("dis_loss_color: {:.4f}, dis_loss_texture: {:.4f}".format(dis_loss_color.item(), dis_loss_texture.item()))
 
+        if (idx + 1) % config.tensorboard_step == 0:
+            scalar_dict = {
+                'gen_loss': gen_loss.item(), 'dis_loss': dis_loss.item(),
+                'gen_loss_content': gen_loss_content.item(), 'gen_loss_color': gen_loss_color.item(),
+                'gen_loss_texture': gen_loss_texture.item(), 'gen_loss_tv': gen_loss_tv.item(),
+                'dis_loss_color': dis_loss_color.item(), 'dis_loss_texture': dis_loss_texture.item()
+            }
+            img_dict = {
+                'phone': train_phone, 'dslr': train_dslr,
+                'enhanced': enhanced, 'phone_rec': phone_rec,
+                'dslr_blur': dslr_blur, 'enhanced_blur': enhanced_blur,
+                'dslr_gray': dslr_gray, 'enhanced_gray': enhanced_gray
+            }
+            for tag, scalar_value in scalar_dict.items():
+                writer.add_scalar(tag, scalar_value, idx + 1)
+            for tag, img_tensor in img_dict.items():
+                writer.add_images(tag, img_tensor, idx + 1)
+
         if (idx + 1) % config.checkpoint_step == 0:
-            sample_path = os.path.join(config.sample_dir, config.phone)
             checkpoint_path = os.path.join(config.checkpoint_dir, config.phone)
-
-            utils.save_image(train_phone, os.path.join(sample_path, '{:05d}-phone.jpg'.format(idx + 1)))
-            utils.save_image(phone_rec, os.path.join(sample_path, '{:05d}-phone_rec.jpg'.format(idx + 1)))
-            utils.save_image(enhanced, os.path.join(sample_path, '{:05d}-enhanced.jpg'.format(idx + 1)))
-            utils.save_image(train_dslr, os.path.join(sample_path, '{:05d}-dslr.jpg'.format(idx + 1)))
-            utils.save_image(enhanced_blur, os.path.join(sample_path, '{:05d}-enhanced_blur.jpg'.format(idx + 1)))
-            utils.save_image(dslr_blur, os.path.join(sample_path, '{:05d}-dslr_blur.jpg'.format(idx + 1)))
-            utils.save_image(enhanced_gray, os.path.join(sample_path, '{:05d}-enhanced_gray.jpg'.format(idx + 1)))
-            utils.save_image(dslr_gray, os.path.join(sample_path, '{:05d}-dslr_gray.jpg'.format(idx + 1)))
-
-            torch.save(models.gen_g.state_dict(), os.path.join(checkpoint_path, '{:05d}-Gen_g.ckpt'.format(idx + 1)))
-            torch.save(models.gen_f.state_dict(), os.path.join(checkpoint_path, '{:05d}-Gen_f.ckpt'.format(idx + 1)))
-            torch.save(models.dis_c.state_dict(), os.path.join(checkpoint_path, '{:05d}-Dis_c.ckpt'.format(idx + 1)))
-            torch.save(models.dis_t.state_dict(), os.path.join(checkpoint_path, '{:05d}-Dis_t.ckpt'.format(idx + 1)))
-            print("Saved intermediate images and model checkpoints.")
+            torch.save(models.gen_g.state_dict(), os.path.join(checkpoint_path, '{:05d}-gen_g.ckpt'.format(idx + 1)))
+            torch.save(models.gen_f.state_dict(), os.path.join(checkpoint_path, '{:05d}-gen_f.ckpt'.format(idx + 1)))
+            torch.save(models.dis_c.state_dict(), os.path.join(checkpoint_path, '{:05d}-dis_c.ckpt'.format(idx + 1)))
+            torch.save(models.dis_t.state_dict(), os.path.join(checkpoint_path, '{:05d}-dis_t.ckpt'.format(idx + 1)))
 
 
 def test(model, device):
@@ -167,19 +173,20 @@ def test(model, device):
 
 
 def main():
-    if not os.path.exists(os.path.join(config.sample_dir, config.phone)):
-        os.makedirs(os.path.join(config.sample_dir, config.phone))
+    if not os.path.exists(os.path.join(config.tensorboard_dir, config.phone)):
+        os.makedirs(os.path.join(config.tensorboard_dir, config.phone))
     if not os.path.exists(os.path.join(config.checkpoint_dir, config.phone)):
         os.makedirs(os.path.join(config.checkpoint_dir, config.phone))
 
     device = torch.device('cuda:0' if config.use_cuda else 'cpu')
     models = WESPE(config).to(device)
-    if config.resume_iter != 0:
+    if config.load_iter != 0:
         load_checkpoints(models)
 
     if config.is_train:
         models.train()
-        train(models, device)
+        writer = SummaryWriter(logdir=os.path.join(config.tensorboard_dir, config.phone))
+        train(models, writer, device)
     else:
         models.eval()
         test(models, device)

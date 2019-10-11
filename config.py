@@ -5,7 +5,7 @@ config = EasyDict()
 
 config.dataset_dir = './datasets/dped/'
 config.checkpoint_dir = './checkpoints/'
-config.sample_dir = './samples/'
+config.tensorboard_dir = './tensorboard/'
 config.phone = 'blackberry'  # ['blackberry', 'iphone', 'sony']
 
 config.batch_size = 30
@@ -24,10 +24,10 @@ config.w_color = 5e-3
 config.w_texture = 5e-3
 config.w_tv = 10
 
-config.checkpoint_step = 1000
-# config.tensorboard_step = 10
 config.print_step = 10
-config.resume_iter = 0
+config.tensorboard_step = 50
+config.checkpoint_step = 1000
+config.load_iter = 0
 config.train_iters = 20000
 config.is_train = True
 config.use_cuda = True
